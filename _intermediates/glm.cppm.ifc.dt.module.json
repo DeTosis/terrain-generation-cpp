@@ -12,7 +12,7 @@
             "provides": [
                 {
                     "logical-name": "glm",
-                    "source-path": "c:\\users\\alexn\\_creativity\\_cpp\\opengl\\openglanothertimeanothertry\\src\\vendor\\glm\\glm.cppm",
+                    "source-path": "c:\\users\\alexn\\_creativity\\_cpp\\opengl\\opengl\\src\\vendor\\glm\\glm.cppm",
                     "is-interface": true
                 }
             ],
