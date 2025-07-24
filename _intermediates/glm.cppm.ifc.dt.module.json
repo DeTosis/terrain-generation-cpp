@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "C:\\Users\\alexn\\_creativity\\_cpp\\OpenGL\\_intermediates\\glm.obj",
+            "outputs": [
+                "C:\\Users\\alexn\\_creativity\\_cpp\\OpenGL\\_intermediates\\glm.cppm.ifc.dt.module.json",
+                "C:\\Users\\alexn\\_creativity\\_cpp\\OpenGL\\_intermediates\\glm.cppm.ifc.dt.d.json",
+                "C:\\Users\\alexn\\_creativity\\_cpp\\OpenGL\\_intermediates\\glm.ifc"
+            ],
+            "provides": [
+                {
+                    "logical-name": "glm",
+                    "source-path": "c:\\users\\alexn\\_creativity\\_cpp\\opengl\\openglanothertimeanothertry\\src\\vendor\\glm\\glm.cppm",
+                    "is-interface": true
+                }
+            ],
+            "requires": []
+        }
+    ]
+}
