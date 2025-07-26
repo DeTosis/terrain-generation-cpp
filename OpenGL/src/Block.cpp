@@ -1,5 +1,12 @@
 #include "Block.h"
 
+Block::Block()
+{
+	m_ChunkRelPos[0] = 0;
+	m_ChunkRelPos[1] = 0;
+	m_ChunkRelPos[2] = 0;
+}
+
 unsigned int Block::GetSize(DataType type) const
 {
 	if (type == DataType::VERTICES)
@@ -52,17 +59,27 @@ void Block::Assemble()
 		unsigned int oldId = m_UniqevertId[i];
 		idRemap[oldId] = i;
 
-		for (int j = 0; j < 6; j++)
-		{
-			m_Vertices.push_back(m_VerticesSet[oldId][j]);
-		}
+		m_Vertices.push_back(m_VerticesSet[oldId][0] + m_ChunkRelPos[0]);
+		m_Vertices.push_back(m_VerticesSet[oldId][1] + m_ChunkRelPos[1]);
+		m_Vertices.push_back(m_VerticesSet[oldId][2] + m_ChunkRelPos[2]);
+
+		m_Vertices.push_back(m_VerticesSet[oldId][3]);
+		m_Vertices.push_back(m_VerticesSet[oldId][4]);
+		m_Vertices.push_back(m_VerticesSet[oldId][5]);
 	}
 
 	for (int i = 0; i < m_Indices.size(); i++)
 	{
-		m_Indices[i] = idRemap[m_Indices[i]];
+		m_Indices[i] = idRemap[m_Indices[i]] + m_VertexOffset;
 	}
 }
+
+void Block::SetInChunkPosition(const int& x, const int& z, const int& y)
+{
+	int temp[3] = { x, z, y };
+	std::memcpy(m_ChunkRelPos, temp, sizeof(m_ChunkRelPos));
+}
+
 void Block::AddIndices(unsigned int indicesSet[])
 {
 	for (int i = 0; i < 6; i++)

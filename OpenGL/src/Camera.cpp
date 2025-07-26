@@ -17,8 +17,8 @@ glm::mat4 Camera::CameraLookMatrix(GLFWwindow* window)
 
 	glfwGetCursorPos(window, &xPos, &yPos);
 
-	float xOffset = m_LastX - xPos;
-	float yOffset = yPos - m_LastY;
+	float xOffset = xPos - m_LastX;
+	float yOffset = m_LastY - yPos;
 
 	m_LastX = xPos;
 	m_LastY = yPos;
@@ -45,16 +45,16 @@ glm::mat4 Camera::CameraLookMatrix(GLFWwindow* window)
 void Camera::Move(GLFWwindow* window, float& deltaTime, float& speed)
 {
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		m_CameraPos += deltaTime * glm::normalize(glm::cross(m_CameraFront, m_CameraUp)) * speed;
-
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		m_CameraPos -= deltaTime * glm::normalize(glm::cross(m_CameraFront, m_CameraUp)) * speed;
 
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		m_CameraPos += deltaTime * glm::normalize(glm::cross(m_CameraFront, m_CameraUp)) * speed;
+
 	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-		m_CameraPos -= deltaTime * m_CameraUp * speed;
+		m_CameraPos += deltaTime * m_CameraUp * speed;
 
 	if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
-		m_CameraPos += deltaTime * m_CameraUp * speed;
+		m_CameraPos -= deltaTime * m_CameraUp * speed;
 
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		m_CameraPos += deltaTime * speed * m_CameraFront;
@@ -83,4 +83,9 @@ void Camera::UpdateCursorLockState(GLFWwindow* window)
 bool Camera::GetMouseState()
 {
 	return m_MouseCaptured;
+}
+
+void Camera::SetMouseState(bool state)
+{
+	m_MouseCaptured = state;
 }

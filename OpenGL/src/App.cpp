@@ -97,11 +97,51 @@ int main()
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	Block block;
-	block.AddFace(Block::Face::ALL);
-	block.Assemble();
+	const unsigned int chunkSize = 64;
+	bool chunk[chunkSize][chunkSize][chunkSize]{ true };
+	std::fill_n(&chunk[0][0][0], chunkSize * chunkSize * chunkSize, true);
 
-	VertexBuffer vb(block.GetVertices(), block.GetSize(Block::DataType::VERTICES));
+	std::vector<float> vert;
+	std::vector<unsigned int> indi;
+
+	for (int x = 0; x < chunkSize; x++)
+	{
+		for (int z = 0; z < chunkSize; z++)
+		{
+			for (int y = 0; y < chunkSize; y++)
+			{
+				Block block;
+
+				block.SetInChunkPosition(x, z, y);
+
+				if (x == 0 || !chunk[x - 1][z][y])
+					block.AddFace(Block::Face::LEFT);
+
+				if (x + 1 == chunkSize || !chunk[x + 1][z][y])
+					block.AddFace(Block::Face::RIGHT);
+
+				if (y == 0 || !chunk[x][z][y - 1])
+					block.AddFace(Block::Face::BACK);
+
+				if (y + 1 == chunkSize || !chunk[x][z][y + 1])
+					block.AddFace(Block::Face::FRONT);
+
+				if (z == 0 || !chunk[x][z - 1][y])
+					block.AddFace(Block::Face::BOTTOM);
+
+				if (z + 1 == chunkSize || !chunk[x][z + 1][y])
+					block.AddFace(Block::Face::TOP);
+
+				block.m_VertexOffset = vert.size() / 6;
+				block.Assemble();
+
+				vert.insert(vert.end(), block.m_Vertices.begin(), block.m_Vertices.end());
+				indi.insert(indi.end(), block.m_Indices.begin(), block.m_Indices.end());
+			}
+		}
+	}
+
+	VertexBuffer vb(vert.data(), vert.size() * sizeof(float));
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -109,12 +149,12 @@ int main()
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	IndexBuffer ib(block.GetIndices(), block.GetSize(Block::DataType::INDICES));
+	IndexBuffer ib(indi.data(), indi.size() * sizeof(unsigned int));
 
 	Shader shader("res/shaders/basic.shader");
 
-	glm::mat4 proj = glm::perspective(80.0f, height / width, 0.1f, 100.0f);
-	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
+	glm::mat4 proj = glm::perspective(glm::radians(80.0f), height / width, 0.1f, 100.0f);
+	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -128,9 +168,6 @@ int main()
 
 	unsigned int query;
 	glGenQueries(1, &query);
-
-	const unsigned int chunkSize = 4;
-	int chunk[chunkSize][chunkSize][chunkSize] {1};
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -153,17 +190,18 @@ int main()
 
 		shader.Bind();
 		{
-			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3{ 0 });
-			glm::mat4 mvp = proj * view * model;
+ 			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3{0});
+ 			glm::mat4 mvp = proj * view * model;
 
-			shader.SetUniformMatrix4fv("u_MVP", mvp);
+ 			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
-			shader.Bind();
-			glBindVertexArray(vao);
-			vb.Bind();
-			ib.Bind();
-			glDrawElements(GL_TRIANGLES, block.m_Indices.size(), GL_UNSIGNED_INT, 0);
+ 			shader.Bind();
+ 			glBindVertexArray(vao);
+ 			vb.Bind();
+ 			ib.Bind();
+ 			glDrawElements(GL_TRIANGLES, indi.size(), GL_UNSIGNED_INT, 0);
 		}
+
 
 		glEndQuery(GL_PRIMITIVES_GENERATED);
 		int primitives = 0;
@@ -180,6 +218,11 @@ int main()
 			ImGui::Text("Faces     : %.i", primitives / 2);
 			ImGui::Text("Triangles : %.i", primitives);
 			ImGui::Text("Vertices  : %.i", primitives * 3);
+
+			if (ImGui::Button("Reset Camera"))
+			{
+				view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
+			}
 		}
 
 		gui.DrawCall();
