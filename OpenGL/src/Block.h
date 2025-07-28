@@ -4,6 +4,12 @@
 #include <algorithm>
 #include <unordered_map>
 
+enum class BlockType
+{
+	DEV,
+	AIR,
+};
+
 class Block
 {
 private:

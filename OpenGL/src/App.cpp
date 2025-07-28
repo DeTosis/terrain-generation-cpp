@@ -23,6 +23,9 @@
 #include "VertexBuffer.h"
 #include "Block.h"
 
+#include "fastNoise/FastNoiseLite.h"
+#include "Chunk.h"
+
 float deltaTime;
 float lastFrame = 0.0f;
 #pragma endregion
@@ -97,47 +100,26 @@ int main()
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	const unsigned int chunkSize = 64;
-	bool chunk[chunkSize][chunkSize][chunkSize]{ true };
-	std::fill_n(&chunk[0][0][0], chunkSize * chunkSize * chunkSize, true);
+	FastNoiseLite noise;
+	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+	noise.SetSeed(2212313);
+	noise.SetFrequency(0.02f);
+
+	int worldSize = 20;
 
 	std::vector<float> vert;
 	std::vector<unsigned int> indi;
 
-	for (int x = 0; x < chunkSize; x++)
+	for (int x = 0; x < worldSize; x++)
 	{
-		for (int z = 0; z < chunkSize; z++)
+		for (int y = 0; y < worldSize; y++)
 		{
-			for (int y = 0; y < chunkSize; y++)
-			{
-				Block block;
+			Chunk chunk;
 
-				block.SetInChunkPosition(x, z, y);
+			chunk.SetWorldPosition(x, y);
 
-				if (x == 0 || !chunk[x - 1][z][y])
-					block.AddFace(Block::Face::LEFT);
-
-				if (x + 1 == chunkSize || !chunk[x + 1][z][y])
-					block.AddFace(Block::Face::RIGHT);
-
-				if (y == 0 || !chunk[x][z][y - 1])
-					block.AddFace(Block::Face::BACK);
-
-				if (y + 1 == chunkSize || !chunk[x][z][y + 1])
-					block.AddFace(Block::Face::FRONT);
-
-				if (z == 0 || !chunk[x][z - 1][y])
-					block.AddFace(Block::Face::BOTTOM);
-
-				if (z + 1 == chunkSize || !chunk[x][z + 1][y])
-					block.AddFace(Block::Face::TOP);
-
-				block.m_VertexOffset = vert.size() / 6;
-				block.Assemble();
-
-				vert.insert(vert.end(), block.m_Vertices.begin(), block.m_Vertices.end());
-				indi.insert(indi.end(), block.m_Indices.begin(), block.m_Indices.end());
-			}
+			chunk.GenerateTerrain(noise);
+			chunk.GenerateBlocks(vert, indi);
 		}
 	}
 
