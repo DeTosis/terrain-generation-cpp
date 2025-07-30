@@ -26,11 +26,15 @@
 #include "fastNoise/FastNoiseLite.h"
 #include "Chunk.h"
 
+#include <unordered_map>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/fast_trigonometry.hpp>
+#include <unordered_set>
+
 float deltaTime;
 float lastFrame = 0.0f;
-#pragma endregion
 
-#pragma region CALLBACK
 static void APIENTRY GLCallback(
 	GLenum source,
 	GLenum type,
@@ -45,8 +49,6 @@ static void APIENTRY GLCallback(
 		type, severity, message);
 }
 
-#pragma endregion
-
 void UpdateDeltaTime()
 {
 	float current = (float)glfwGetTime();
@@ -59,8 +61,88 @@ void SetWireframeMode(unsigned int mode)
 	glPolygonMode(GL_FRONT_AND_BACK, mode);
 }
 
-float height = 640;
-float width = 480;
+glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkSize)
+{
+	return glm::vec3({
+		floor(cameraPos.x / chunkSize),
+		floor(cameraPos.y / chunkSize),
+		floor(cameraPos.z / chunkSize)
+		});
+}
+float height = 1280;
+float width = 720;
+
+struct PairHash
+{
+	std::size_t operator()(const std::pair<int, int>& p) const
+	{
+		return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+	}
+};
+
+/*
+* 
+*  MAIN 
+* 
+*/
+static FastNoiseLite noise;
+void GenerateChunk(std::unordered_map<std::pair<int, int>, Chunk, PairHash>& loadedChunks, VertexBuffer& vb, IndexBuffer& ib, int x, int y)
+{
+	Chunk chunk;
+	chunk.SetWorldPosition(x, y);
+	chunk.GenerateTerrain(noise);
+	chunk.GenerateBlocks();
+
+	vb.Bind();
+	chunk.m_VBOLayout.size = chunk.m_MeshData.vertices.size() * sizeof(float);
+	chunk.m_VBOLayout.offset = vb.Allocate(chunk.m_MeshData.vertices.data(), chunk.m_VBOLayout.size);
+
+	ib.Bind();
+	chunk.m_IBOLayout.size = chunk.m_MeshData.indices.size() * sizeof(unsigned int);
+	chunk.m_IBOLayout.offset = ib.Allocate(chunk.m_MeshData.indices.data(), chunk.m_IBOLayout.size);
+	
+	if (!loadedChunks.contains({ x,y }))
+	{
+		loadedChunks[{x, y}] = chunk;
+	}
+}
+
+void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk& chunk)
+{
+	shader.Bind();
+	glBindVertexArray(vao);
+	vb.Bind();
+	ib.Bind();
+
+	glDrawElementsBaseVertex(
+		GL_TRIANGLES, 
+		chunk.m_MeshData.indices.size(),
+		GL_UNSIGNED_INT, 
+		(void*)(chunk.m_IBOLayout.offset),
+		chunk.m_VBOLayout.offset / (6 * sizeof(float)));
+}
+
+std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, int& radius)
+{
+	std::vector<glm::ivec2> points;
+	int rSquared = radius * radius;
+
+	for (int y = cy - radius; y <= cy + radius; ++y)
+	{
+		for (int x = cx - radius; x <= cx + radius; ++x)
+		{
+			int dx = x - cx;
+			int dy = y - cy;
+
+			if (dx * dx + dy * dy <= rSquared)
+			{
+				points.emplace_back(x, y);
+			}
+		}
+	}
+
+	return points;
+}
 
 int main()
 {
@@ -69,7 +151,7 @@ int main()
 	if (!glfwInit())
 		return -1;
 
-	window = glfwCreateWindow(640, 480, "?", nullptr, nullptr);
+	window = glfwCreateWindow(height, width, "?", nullptr, nullptr);
 	if (!window)
 	{
 		glfwTerminate();
@@ -100,42 +182,30 @@ int main()
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	FastNoiseLite noise;
 	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 	noise.SetSeed(2212313);
-	noise.SetFrequency(0.02f);
+	noise.SetFrequency(0.01f);
+	noise.SetFractalOctaves(3);
+	noise.SetCellularJitter(3.0f);
+	noise.SetFractalLacunarity(2.0f);
 
-	int worldSize = 20;
+	int worldSize = 4;
 
-	std::vector<float> vert;
-	std::vector<unsigned int> indi;
-
-	for (int x = 0; x < worldSize; x++)
-	{
-		for (int y = 0; y < worldSize; y++)
-		{
-			Chunk chunk;
-
-			chunk.SetWorldPosition(x, y);
-
-			chunk.GenerateTerrain(noise);
-			chunk.GenerateBlocks(vert, indi);
-		}
-	}
-
-	VertexBuffer vb(vert.data(), vert.size() * sizeof(float));
-
+	VertexBuffer vb;
+	vb.Bind();
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+	IndexBuffer ib;
+	ib.Bind();
 
-	IndexBuffer ib(indi.data(), indi.size() * sizeof(unsigned int));
 
 	Shader shader("res/shaders/basic.shader");
 
-	glm::mat4 proj = glm::perspective(glm::radians(80.0f), height / width, 0.1f, 100.0f);
+	float fov = 80.0f;
+	glm::mat4 proj = glm::perspective(glm::radians(fov), height / width, 0.1f, 100.0f);
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
 
 	glEnable(GL_DEPTH_TEST);
@@ -144,12 +214,16 @@ int main()
 	bool wireframe = false;
 
 	ImGuiSup gui(window);
-	Camera camera(0.1f, 4.0f);
+	Camera camera(0.1f, 10.0f);
 
 	glm::vec3 translation { 0 };
 
 	unsigned int query;
 	glGenQueries(1, &query);
+
+	int renderDistance = 6;
+
+	std::unordered_map<std::pair<int, int>, Chunk, PairHash> loadedChunks;
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -161,11 +235,11 @@ int main()
 		SetWireframeMode(wireframe ? GL_LINE : GL_FILL);
 
 		//RE - DO
-		float speed = 4.0f;
-		camera.Move(window, deltaTime, speed);
+		camera.Move(window, deltaTime);
 		camera.UpdateCursorLockState(window);
 		if (camera.GetMouseState())
 			view = camera.CameraLookMatrix(window);
+
 
 		// *** DRAW CALL
 		glBeginQuery(GL_PRIMITIVES_GENERATED, query);
@@ -177,13 +251,33 @@ int main()
 
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
- 			shader.Bind();
- 			glBindVertexArray(vao);
- 			vb.Bind();
- 			ib.Bind();
- 			glDrawElements(GL_TRIANGLES, indi.size(), GL_UNSIGNED_INT, 0);
-		}
+			std::unordered_map<std::pair<int, int>, char, PairHash> visibleChunks;
+			//GPT **edited
+			glm::vec2 camPos2D = glm::vec2(camera.m_CameraPos.x, camera.m_CameraPos.z);
+			for (int x = -renderDistance; x <= renderDistance; x++)
+			{
+				for (int z = -renderDistance; z <= renderDistance; z++)
+				{
+					glm::vec2 offset = glm::vec2(x, z);
+					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
+					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
+					
+					if (glm::length(offset) > renderDistance) continue;
+					visibleChunks[{ chunkCoord.x, chunkCoord.y }] = ' ';
+				}
+			}
+			//GPT
 
+			for (const auto& it : visibleChunks)
+			{
+				int x = it.first.first;
+				int y = it.first.second;
+
+				if (!loadedChunks.contains({x,y}))
+					GenerateChunk(loadedChunks, vb,ib,x,y);
+				DrawCall(shader, vao, vb, ib, loadedChunks[{x,y}]);
+			}
+		}
 
 		glEndQuery(GL_PRIMITIVES_GENERATED);
 		int primitives = 0;
@@ -201,9 +295,23 @@ int main()
 			ImGui::Text("Triangles : %.i", primitives);
 			ImGui::Text("Vertices  : %.i", primitives * 3);
 
+			ImGui::Text("Camera pos: %.f x | %.f y | %.f z",
+				camera.m_CameraPos[0], camera.m_CameraPos[1], camera.m_CameraPos[2]);
+
+			auto pos = WorldToChunkPos(camera.m_CameraPos, m_ChunkSize);
+
+			ImGui::Text("Camera rot: %.f x | %.f y", camera.m_Pitch, camera.m_Yaw );
+			ImGui::Text("Camera vec: %.f x | %.f y", cos(camera.m_Pitch), sin(camera.m_Yaw));
+			ImGui::Text("Camera frn: %.f x | %.f y | %.f z", camera.m_CameraFront.x, camera.m_CameraFront.y, camera.m_CameraFront.z);
+			ImGui::Text("Chunk  pos: %.f x | %.f y | %.f z", pos.x,pos.y,pos.z);
 			if (ImGui::Button("Reset Camera"))
 			{
-				view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
+				camera.m_CameraPos = glm::vec3(0, 0, 3);
+				camera.m_CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+				camera.m_CameraFront = glm::vec3({ 0 });
+				camera.m_Pitch = 0.0f;
+				camera.m_Yaw = -90.0f;
+				view = camera.CameraLookMatrix(window);
 			}
 		}
 

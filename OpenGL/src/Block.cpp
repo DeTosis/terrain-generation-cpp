@@ -80,7 +80,7 @@ void Block::SetInChunkPosition(const int& x, const int& z, const int& y)
 	std::memcpy(m_ChunkRelPos, temp, sizeof(m_ChunkRelPos));
 }
 
-void Block::AddIndices(unsigned int indicesSet[])
+void Block::AddIndices(const unsigned int indicesSet[])
 {
 	for (int i = 0; i < 6; i++)
 	{

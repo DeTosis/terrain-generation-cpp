@@ -1,8 +1,9 @@
 #include "Chunk.h"
+#include <iostream>
 
 Chunk::Chunk()
 {
-	std::fill_n(&m_Chunk[0][0][0], m_ChunkSize * m_ChunkSize * m_ChunkSize, BlockType::AIR);
+	std::fill_n(&m_Chunk[0][0][0], m_ChunkSize * m_ChunkHeight * m_ChunkSize, BlockType::AIR);
 }
 
 void Chunk::GenerateTerrain(FastNoiseLite& noise)
@@ -13,13 +14,13 @@ void Chunk::GenerateTerrain(FastNoiseLite& noise)
 	{
 		for (int y = 0; y < m_ChunkSize; y++)
 		{
-			float worldX = x + m_WorldX * m_ChunkSize;
-			float worldY = y + m_WorldY * m_ChunkSize;
+			float worldX = m_WorldX * static_cast<float>(m_ChunkSize) + x;
+			float worldY = m_WorldY * static_cast<float>(m_ChunkSize) + y;
 
 			float noiseValue = noise.GetNoise(worldX, worldY);
 			float normalized = (noiseValue + 1.0f) / 2.0f;
 
-			heightMap[x][y] = normalized * (float)m_ChunkSize;
+			heightMap[x][y] = normalized * m_ChunkHeight - 1.0f;
 		}
 	}
 
@@ -28,12 +29,10 @@ void Chunk::GenerateTerrain(FastNoiseLite& noise)
 		for (int y = 0; y < m_ChunkSize; y++)
 		{
 			int height = static_cast<int>(heightMap[x][y]);
-			for (int z = 0; z < m_ChunkSize; z++)
+			for (int z = 0; z < m_ChunkHeight; z++)
 			{
 				if (z < height)
 					m_Chunk[x][z][y] = BlockType::DEV;
-				else
-					m_Chunk[x][z][y] = BlockType::AIR;
 			}
 		}
 	}
@@ -45,11 +44,11 @@ void Chunk::SetWorldPosition(int x, int y)
 	m_WorldY = y;
 }
 
-void Chunk::GenerateBlocks(std::vector<float>& vert, std::vector<unsigned int>& indi)
+void Chunk::GenerateBlocks()
 {
 	for (int x = 0; x < m_ChunkSize; x++)
 	{
-		for (int z = 0; z < m_ChunkSize; z++)
+		for (int z = 0; z < m_ChunkHeight; z++)
 		{
 			for (int y = 0; y < m_ChunkSize; y++)
 			{
@@ -75,15 +74,16 @@ void Chunk::GenerateBlocks(std::vector<float>& vert, std::vector<unsigned int>& 
 				if (z == 0 || m_Chunk[x][z - 1][y] == BlockType::AIR)
 					block.AddFace(Block::Face::BOTTOM);
 
-				if (z + 1 == m_ChunkSize || m_Chunk[x][z + 1][y] == BlockType::AIR)
+				if (z + 1 == m_ChunkHeight || m_Chunk[x][z + 1][y] == BlockType::AIR)
 					block.AddFace(Block::Face::TOP);
 
-				block.m_VertexOffset = vert.size() / 6;
+				block.m_VertexOffset = m_MeshData.vertices.size() / m_VertexSize;
 				block.Assemble();
 
-				vert.insert(vert.end(), block.m_Vertices.begin(), block.m_Vertices.end());
-				indi.insert(indi.end(), block.m_Indices.begin(), block.m_Indices.end());
+				m_MeshData.vertices.insert(m_MeshData.vertices.end(), block.m_Vertices.begin(), block.m_Vertices.end());
+				m_MeshData.indices.insert(m_MeshData.indices.end(), block.m_Indices.begin(), block.m_Indices.end());
 			}
 		}
 	}
 }
+
