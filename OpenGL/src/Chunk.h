@@ -14,14 +14,14 @@ struct ChunkMesh
 
 struct VBOLayout
 {
-	int offset;
-	int size;
+	int offset = -1;
+	int size = -1;
 };
 
 struct IBOLayout
 {
-	int offset;
-	int size;
+	int offset = -1;
+	int size = -1;
 };
 
 const static unsigned int m_ChunkSize = 16;

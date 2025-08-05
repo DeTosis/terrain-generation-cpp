@@ -32,6 +32,9 @@
 #include <glm/gtx/fast_trigonometry.hpp>
 #include <unordered_set>
 
+#include <thread>
+#include <queue>
+
 float deltaTime;
 float lastFrame = 0.0f;
 
@@ -69,6 +72,7 @@ glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkS
 		floor(cameraPos.z / chunkSize)
 		});
 }
+
 float height = 1280;
 float width = 720;
 
@@ -86,26 +90,30 @@ struct PairHash
 * 
 */
 static FastNoiseLite noise;
-void GenerateChunk(std::unordered_map<std::pair<int, int>, Chunk, PairHash>& loadedChunks, VertexBuffer& vb, IndexBuffer& ib, int x, int y)
+Chunk GenerateChunk(int x, int y)
 {
 	Chunk chunk;
 	chunk.SetWorldPosition(x, y);
 	chunk.GenerateTerrain(noise);
 	chunk.GenerateBlocks();
 
-	vb.Bind();
 	chunk.m_VBOLayout.size = chunk.m_MeshData.vertices.size() * sizeof(float);
+	chunk.m_IBOLayout.size = chunk.m_MeshData.indices.size() * sizeof(unsigned int);
+	
+	return chunk;
+}
+
+void AllocateChunk(Chunk& chunk,
+	VertexBuffer& vb, IndexBuffer& ib,
+	int x, int y)
+{
+	vb.Bind();
 	chunk.m_VBOLayout.offset = vb.Allocate(chunk.m_MeshData.vertices.data(), chunk.m_VBOLayout.size);
 
 	ib.Bind();
-	chunk.m_IBOLayout.size = chunk.m_MeshData.indices.size() * sizeof(unsigned int);
 	chunk.m_IBOLayout.offset = ib.Allocate(chunk.m_MeshData.indices.data(), chunk.m_IBOLayout.size);
-	
-	if (!loadedChunks.contains({ x,y }))
-	{
-		loadedChunks[{x, y}] = chunk;
-	}
 }
+
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk& chunk)
 {
@@ -227,21 +235,22 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
+		// *** FRAME BOOTSTRAP ***
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		gui.NewFrame();
+		// *** FRAME BOOTSTRAP ***
 		
 		UpdateDeltaTime();
-		gui.NewFrame();
-
 		SetWireframeMode(wireframe ? GL_LINE : GL_FILL);
 
-		//RE - DO
+		// *** CAMERA ***
 		camera.Move(window, deltaTime);
 		camera.UpdateCursorLockState(window);
 		if (camera.GetMouseState())
 			view = camera.CameraLookMatrix(window);
+		// *** CAMERA ***
 
-
-		// *** DRAW CALL
+		// REDO REDO REDO REDO *** DRAW CALL
 		glBeginQuery(GL_PRIMITIVES_GENERATED, query);
 
 		shader.Bind();
@@ -252,7 +261,7 @@ int main()
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
 			std::unordered_map<std::pair<int, int>, char, PairHash> visibleChunks;
-			//GPT **edited
+
 			glm::vec2 camPos2D = glm::vec2(camera.m_CameraPos.x, camera.m_CameraPos.z);
 			for (int x = -renderDistance; x <= renderDistance; x++)
 			{
@@ -262,19 +271,55 @@ int main()
 					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
 					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
 					
-					if (glm::length(offset) > renderDistance) continue;
+					if (glm::length(offset) > renderDistance)
+					{
+						if (visibleChunks.contains({ chunkCoord.x, chunkCoord.y }))
+						{
+							visibleChunks.erase({ chunkCoord.x, chunkCoord.y });
+						}
+						continue;
+					}
 					visibleChunks[{ chunkCoord.x, chunkCoord.y }] = ' ';
 				}
 			}
-			//GPT
+
+			std::vector<std::pair<int, int>> clear;
+			for (auto it = loadedChunks.begin(); it != loadedChunks.end(); it++)
+			{
+				auto& pos = it->first;
+				if (!visibleChunks.contains(pos))
+				{
+					Chunk& chunk = it->second;
+					vb.Free(chunk.m_VBOLayout.offset, chunk.m_VBOLayout.size);
+					ib.Free(chunk.m_IBOLayout.offset, chunk.m_IBOLayout.size);
+					
+					clear.push_back(it->first);
+				}
+			}
+
+			for (const auto& it : clear)
+			{
+				loadedChunks.erase(it);
+			}
 
 			for (const auto& it : visibleChunks)
 			{
 				int x = it.first.first;
 				int y = it.first.second;
 
-				if (!loadedChunks.contains({x,y}))
-					GenerateChunk(loadedChunks, vb,ib,x,y);
+				if (!loadedChunks.contains({ x,y }))
+				{
+					auto chunk = GenerateChunk(x, y);
+					loadedChunks[{x, y}] = chunk;
+				}
+				AllocateChunk(loadedChunks[{x,y}], vb, ib, x, y);
+			}
+
+			for (const auto& it : visibleChunks)
+			{
+				int x = it.first.first;
+				int y = it.first.second;
+
 				DrawCall(shader, vao, vb, ib, loadedChunks[{x,y}]);
 			}
 		}
@@ -285,7 +330,7 @@ int main()
 		glGetQueryObjectiv(query, GL_QUERY_RESULT, &primitives);
 		// *** DRAW CALL
 
-		//IMGUI
+		// *** IMGUI ***
 		{
 			ImGui::Checkbox("Wireframe", &wireframe);
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
