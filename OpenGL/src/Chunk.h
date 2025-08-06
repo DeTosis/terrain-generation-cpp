@@ -45,11 +45,12 @@ private:
 	int m_WorldY = 0;
 public:
 	RenderState state = RenderState::NONE;
-	ChunkMesh m_MeshData;
+	ChunkMesh* m_MeshData = new ChunkMesh();
 	VBOLayout m_VBOLayout;
 	IBOLayout m_IBOLayout;
 public:
 		Chunk();
+		~Chunk();
 		void GenerateChunk(FastNoiseLite& noise, int x, int y);
 		void AllocateChunk(VertexBuffer& vb, IndexBuffer& ib);
 		void UnLoad(VertexBuffer& vb, IndexBuffer& ib);

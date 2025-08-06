@@ -6,6 +6,11 @@ Chunk::Chunk()
 	std::fill_n(&m_Chunk[0][0][0], m_ChunkSize * m_ChunkHeight * m_ChunkSize, BlockType::AIR);
 }
 
+Chunk::~Chunk()
+{
+	delete(m_MeshData);
+}
+
 void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
 {
 	if (state != RenderState::NONE)
@@ -17,8 +22,8 @@ void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
 	GenerateTerrain(noise);
 	GenerateBlocks();
 
-	m_VBOLayout.size = m_MeshData.vertices.size() * sizeof(float);
-	m_IBOLayout.size = m_MeshData.indices.size() * sizeof(unsigned int);
+	m_VBOLayout.size = m_MeshData->vertices.size() * sizeof(float);
+	m_IBOLayout.size = m_MeshData->indices.size() * sizeof(unsigned int);
 	
 	state = RenderState::GENERATED;
 }
@@ -30,11 +35,11 @@ void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 
 	vb.Bind();
 	m_VBOLayout.offset = vb.Allocate(
-			m_MeshData.vertices.data(), m_VBOLayout.size);
+			m_MeshData->vertices.data(), m_VBOLayout.size);
 
 	ib.Bind();
 	m_IBOLayout.offset = ib.Allocate(
-			m_MeshData.indices.data(), m_IBOLayout.size);
+			m_MeshData->indices.data(), m_IBOLayout.size);
 
 	state = RenderState::ALLOCATED;
 }
@@ -124,11 +129,11 @@ void Chunk::GenerateBlocks()
 				if (z + 1 == m_ChunkHeight || m_Chunk[x][z + 1][y] == BlockType::AIR)
 					block.AddFace(Block::Face::TOP);
 
-				block.m_VertexOffset = m_MeshData.vertices.size() / m_VertexSize;
+				block.m_VertexOffset = m_MeshData->vertices.size() / m_VertexSize;
 				block.Assemble();
 
-				m_MeshData.vertices.insert(m_MeshData.vertices.end(), block.m_Vertices.begin(), block.m_Vertices.end());
-				m_MeshData.indices.insert(m_MeshData.indices.end(), block.m_Indices.begin(), block.m_Indices.end());
+				m_MeshData->vertices.insert(m_MeshData->vertices.end(), block.m_Vertices.begin(), block.m_Vertices.end());
+				m_MeshData->indices.insert(m_MeshData->indices.end(), block.m_Indices.begin(), block.m_Indices.end());
 			}
 		}
 	}

@@ -24,7 +24,7 @@ public:
 
 	glm::vec3 m_CameraFront = glm::vec3({0});
 	glm::vec3 m_CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec3 m_CameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+	glm::vec3 m_CameraPos = glm::vec3(0.0f, 24.0f, 3.0f);
 	Camera(const float sens, const float speed);
 	
 	glm::mat4 CameraLookMatrix(GLFWwindow* window);

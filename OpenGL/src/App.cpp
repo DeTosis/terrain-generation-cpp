@@ -91,9 +91,9 @@ struct PairHash
 */
 static FastNoiseLite noise;
 
-void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk& chunk)
+void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
 {
-	if (chunk.state != RenderState::ALLOCATED)
+	if (chunk->state != RenderState::ALLOCATED)
 		return;
 	
 	shader.Bind();
@@ -103,10 +103,10 @@ void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer&
 
 	glDrawElementsBaseVertex(
 		GL_TRIANGLES, 
-		chunk.m_MeshData.indices.size(),
+		chunk->m_MeshData->indices.size(),
 		GL_UNSIGNED_INT, 
-		(void*)(chunk.m_IBOLayout.offset),
-		chunk.m_VBOLayout.offset / (6 * sizeof(float)));
+		(void*)(chunk->m_IBOLayout.offset),
+		chunk->m_VBOLayout.offset / (6 * sizeof(float)));
 }
 
 std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, int& radius)
@@ -201,21 +201,23 @@ int main()
 
 	ImGuiSup gui(window);
 	Camera camera(0.1f, 10.0f);
+	view = camera.CameraLookMatrix(window);
 
 	glm::vec3 translation { 0 };
 
 	unsigned int query;
 	glGenQueries(1, &query);
 
-	int renderDistance = 6;
+	int renderDistance = 2;
 
-	std::unordered_map<std::pair<int, int>, Chunk, PairHash> loadedChunks;
+	std::unordered_map<std::pair<int, int>, Chunk*, PairHash> loadedChunks;
 
 	while (!glfwWindowShouldClose(window))
 	{
 		{
 			// *** FRAME BOOTSTRAP ***
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glClearColor(0.439f, 0.675f, 0.851f, 1.0f);
 			gui.NewFrame();
 			// *** FRAME BOOTSTRAP ***
 
@@ -244,7 +246,6 @@ int main()
 			{
 				for (int z = -renderDistance; z < renderDistance; z++)
 				{
-
 					glm::vec2 offset = glm::vec2(x,z);
 					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
 					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
@@ -263,7 +264,7 @@ int main()
 				int y = it.first.second;
 				if (!visibleChunks.contains({x,y}))
 				{
-					loadedChunks[{x,y}].UnLoad(vb,ib);
+					loadedChunks.at({x,y})->UnLoad(vb,ib);
 				}
 			}
 
@@ -272,13 +273,14 @@ int main()
 				int x = it.first;
 				int y = it.second;
 
-				Chunk chunk;
 				if (!loadedChunks.contains({ x,y }))
 				{
-					chunk.GenerateChunk(noise, x, y);
-					loadedChunks.insert({ { x,y },chunk });
+					Chunk* chunk = new Chunk();
+					chunk->GenerateChunk(noise, x, y);
+					loadedChunks.insert({ { x,y }, chunk });
 				}
-				loadedChunks.at({ x,y }).AllocateChunk(vb, ib);
+
+				loadedChunks.at({ x,y })->AllocateChunk(vb, ib);
 			}
 
 			for (auto& it : loadedChunks)
@@ -286,7 +288,7 @@ int main()
 				int x = it.first.first;
 				int y = it.first.second;
 
-				DrawCall(shader, vao, vb, ib, loadedChunks[{x, y}]);
+				DrawCall(shader, vao, vb, ib, loadedChunks.at({x, y}));
 			}
 		}
 		glEndQuery(GL_PRIMITIVES_GENERATED);
@@ -322,7 +324,7 @@ int main()
 
 			if (ImGui::Button("Reset Camera"))
 			{
-				camera.m_CameraPos = glm::vec3(0, 0, 3);
+				camera.m_CameraPos = glm::vec3(0, 24, 3);
 				camera.m_CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 				camera.m_CameraFront = glm::vec3({ 0 });
 				camera.m_Pitch = 0.0f;
