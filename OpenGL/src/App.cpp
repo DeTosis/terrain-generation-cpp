@@ -34,6 +34,8 @@
 
 #include <thread>
 #include <queue>
+#include <future>
+#include <mutex>
 
 float deltaTime;
 float lastFrame = 0.0f;
@@ -84,11 +86,7 @@ struct PairHash
 	}
 };
 
-/*
-* 
-*  MAIN 
-* 
-*/
+
 static FastNoiseLite noise;
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
@@ -130,6 +128,26 @@ std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, in
 
 	return points;
 }
+
+static std::mutex mtx;
+void ThreadChunkGeneration(
+	std::unordered_map<std::pair<int, int>, Chunk*, PairHash>& loadedChunks, 
+	FastNoiseLite& noise, int x, int y)
+{
+	Chunk* chunk = new Chunk();
+	chunk->GenerateChunk(noise, x, y);
+
+	if (!loadedChunks.contains({ x,y }))
+	{
+		std::lock_guard<std::mutex> lock(mtx);
+		loadedChunks.insert({ {x,y} , std::move(chunk)});
+	}
+}
+/*
+*
+*  MAIN
+*
+*/
 
 int main()
 {
@@ -208,10 +226,13 @@ int main()
 	unsigned int query;
 	glGenQueries(1, &query);
 
-	int renderDistance = 2;
+	int renderDistance = 4;
 
 	std::unordered_map<std::pair<int, int>, Chunk*, PairHash> loadedChunks;
+	std::unordered_set<std::pair<int, int>, PairHash> queuedGenerations;
 
+
+	int maxThreadCount = 16;
 	while (!glfwWindowShouldClose(window))
 	{
 		{
@@ -268,6 +289,7 @@ int main()
 				}
 			}
 
+
 			for (const auto& it : visibleChunks)
 			{
 				int x = it.first;
@@ -275,12 +297,34 @@ int main()
 
 				if (!loadedChunks.contains({ x,y }))
 				{
-					Chunk* chunk = new Chunk();
-					chunk->GenerateChunk(noise, x, y);
-					loadedChunks.insert({ { x,y }, chunk });
-				}
+					if (!queuedGenerations.contains({ x,y }) && queuedGenerations.size() < maxThreadCount)
+					{
+						queuedGenerations.insert({x,y});
+						std::thread t(ThreadChunkGeneration, std::ref(loadedChunks), std::ref(noise), x, y);
+						t.detach();
 
-				loadedChunks.at({ x,y })->AllocateChunk(vb, ib);
+						//Single
+					}
+				}
+			}
+
+			{
+				std::lock_guard<std::mutex> lock(mtx);
+				for (auto it = queuedGenerations.begin(); it != queuedGenerations.end();)
+				{
+					auto& [x, y] = *it;
+					if (loadedChunks.contains({x,y}))
+						it = queuedGenerations.erase(it);
+					else
+						it++;
+				}
+			}
+
+			for (const auto& it : visibleChunks)
+			{
+				auto& [x, y] = it;
+				if (loadedChunks.contains({x,y}))
+					loadedChunks.at({ x,y })->AllocateChunk(vb, ib);
 			}
 
 			for (auto& it : loadedChunks)
@@ -332,9 +376,9 @@ int main()
 				view = camera.CameraLookMatrix(window);
 			}
 		}
+		// *** IMGUI ***
 
 		gui.DrawCall();
-
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}

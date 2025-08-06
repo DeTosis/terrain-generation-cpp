@@ -8,7 +8,8 @@ Chunk::Chunk()
 
 Chunk::~Chunk()
 {
-	delete(m_MeshData);
+	std::cout << "Destructor called" << std::endl;
+	delete m_MeshData;
 }
 
 void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
