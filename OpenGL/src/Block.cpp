@@ -1,4 +1,5 @@
 #include "Block.h"
+#include "measuring/Timer.h"
 
 Block::Block()
 {
@@ -54,6 +55,7 @@ void Block::Assemble()
 	m_UniqevertId.erase(std::unique(m_UniqevertId.begin(), m_UniqevertId.end()), m_UniqevertId.end());
 
 	std::unordered_map<unsigned int, unsigned int> idRemap;
+
 	for (int i = 0; i < m_UniqevertId.size(); i++)
 	{
 		unsigned int oldId = m_UniqevertId[i];
@@ -88,4 +90,12 @@ void Block::AddIndices(const unsigned int indicesSet[])
 		m_UniqevertId.push_back(value);
 		m_Indices.push_back(value);
 	}
+}
+
+void Block::Clear()
+{
+	m_VertexOffset = 0;
+	m_Vertices.clear();
+	m_Indices.clear();
+	m_UniqevertId.clear();
 }

@@ -150,6 +150,9 @@
     <ClCompile Include="src\Chunk.cpp" />
     <ClCompile Include="src\ImGuiSup.cpp" />
     <ClCompile Include="src\IndexBuffer.cpp" />
+    <ClCompile Include="src\measuring\ConsoleLog.cpp" />
+    <ClCompile Include="src\measuring\RepeatableTimer.cpp" />
+    <ClCompile Include="src\measuring\ScopeTimer.cpp" />
     <ClCompile Include="src\Shader.cpp" />
     <ClCompile Include="src\vendor\glm\detail\glm.cpp" />
     <ClCompile Include="src\vendor\glm\glm.cppm" />
@@ -317,6 +320,7 @@
     <ClInclude Include="src\Chunk.h" />
     <ClInclude Include="src\ImGuiSup.h" />
     <ClInclude Include="src\IndexBuffer.h" />
+    <ClInclude Include="src\measuring\Timer.h" />
     <ClInclude Include="src\Shader.h" />
     <ClInclude Include="src\vendor\fastNoise\FastNoiseLite.h" />
     <ClInclude Include="src\vendor\glm\common.hpp" />

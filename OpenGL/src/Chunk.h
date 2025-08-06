@@ -34,7 +34,7 @@ enum class RenderState
 };
 
 const static unsigned int m_ChunkSize = 16;
-const static unsigned int m_ChunkHeight = m_ChunkSize * 2;
+const static unsigned int m_ChunkHeight = m_ChunkSize * 4;
 
 class Chunk
 {

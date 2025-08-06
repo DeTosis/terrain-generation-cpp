@@ -1,5 +1,6 @@
 #include "Chunk.h"
 #include <iostream>
+#include "measuring/Timer.h"
 
 Chunk::Chunk()
 {
@@ -99,14 +100,13 @@ void Chunk::SetWorldPosition(int x, int y)
 
 void Chunk::GenerateBlocks()
 {
+	Block block;
 	for (int x = 0; x < m_ChunkSize; x++)
 	{
 		for (int z = 0; z < m_ChunkHeight; z++)
 		{
 			for (int y = 0; y < m_ChunkSize; y++)
 			{
-				Block block;
-
 				block.SetInChunkPosition(x + m_ChunkSize * m_WorldX, z, y + m_ChunkSize * m_WorldY);
 
 				if (m_Chunk[x][z][y] == BlockType::AIR)
@@ -131,10 +131,13 @@ void Chunk::GenerateBlocks()
 					block.AddFace(Block::Face::TOP);
 
 				block.m_VertexOffset = m_MeshData->vertices.size() / m_VertexSize;
+
 				block.Assemble();
 
 				m_MeshData->vertices.insert(m_MeshData->vertices.end(), block.m_Vertices.begin(), block.m_Vertices.end());
 				m_MeshData->indices.insert(m_MeshData->indices.end(), block.m_Indices.begin(), block.m_Indices.end());
+				
+				block.Clear();
 			}
 		}
 	}

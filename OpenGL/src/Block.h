@@ -63,6 +63,7 @@ public:
 	void Assemble();
 
 	void SetInChunkPosition(const int& x, const int& z, const int& y);
+	void Clear();
 private:
 	void AddIndices(const unsigned int indicesSet[]);
 };

@@ -226,13 +226,15 @@ int main()
 	unsigned int query;
 	glGenQueries(1, &query);
 
-	int renderDistance = 4;
+	int renderDistance = 10;
 
 	std::unordered_map<std::pair<int, int>, Chunk*, PairHash> loadedChunks;
 	std::unordered_set<std::pair<int, int>, PairHash> queuedGenerations;
 
 
-	int maxThreadCount = 16;
+	int maxThreadCount = std::thread::hardware_concurrency() / 2;
+	bool threadActive = false;
+	std::thread tr;
 	while (!glfwWindowShouldClose(window))
 	{
 		{
@@ -297,15 +299,20 @@ int main()
 
 				if (!loadedChunks.contains({ x,y }))
 				{
-					if (!queuedGenerations.contains({ x,y }) && queuedGenerations.size() < maxThreadCount)
+					if (!queuedGenerations.contains({ x,y }) && !threadActive)
 					{
 						queuedGenerations.insert({x,y});
 						std::thread t(ThreadChunkGeneration, std::ref(loadedChunks), std::ref(noise), x, y);
-						t.detach();
-
-						//Single
+						threadActive = true;
+						tr = std::move(t);
 					}
 				}
+			}
+
+			if (tr.joinable())
+			{
+				tr.join();
+				threadActive = false;
 			}
 
 			{
