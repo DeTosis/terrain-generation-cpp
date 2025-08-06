@@ -90,30 +90,6 @@ struct PairHash
 * 
 */
 static FastNoiseLite noise;
-Chunk GenerateChunk(int x, int y)
-{
-	Chunk chunk;
-	chunk.SetWorldPosition(x, y);
-	chunk.GenerateTerrain(noise);
-	chunk.GenerateBlocks();
-
-	chunk.m_VBOLayout.size = chunk.m_MeshData.vertices.size() * sizeof(float);
-	chunk.m_IBOLayout.size = chunk.m_MeshData.indices.size() * sizeof(unsigned int);
-	
-	return chunk;
-}
-
-void AllocateChunk(Chunk& chunk,
-	VertexBuffer& vb, IndexBuffer& ib,
-	int x, int y)
-{
-	vb.Bind();
-	chunk.m_VBOLayout.offset = vb.Allocate(chunk.m_MeshData.vertices.data(), chunk.m_VBOLayout.size);
-
-	ib.Bind();
-	chunk.m_IBOLayout.offset = ib.Allocate(chunk.m_MeshData.indices.data(), chunk.m_IBOLayout.size);
-}
-
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk& chunk)
 {
@@ -209,7 +185,6 @@ int main()
 	IndexBuffer ib;
 	ib.Bind();
 
-
 	Shader shader("res/shaders/basic.shader");
 
 	float fov = 80.0f;
@@ -235,42 +210,44 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		// *** FRAME BOOTSTRAP ***
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		gui.NewFrame();
-		// *** FRAME BOOTSTRAP ***
-		
-		UpdateDeltaTime();
-		SetWireframeMode(wireframe ? GL_LINE : GL_FILL);
+		{
+			// *** FRAME BOOTSTRAP ***
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			gui.NewFrame();
+			// *** FRAME BOOTSTRAP ***
 
-		// *** CAMERA ***
-		camera.Move(window, deltaTime);
-		camera.UpdateCursorLockState(window);
-		if (camera.GetMouseState())
-			view = camera.CameraLookMatrix(window);
-		// *** CAMERA ***
+			UpdateDeltaTime();
+			SetWireframeMode(wireframe ? GL_LINE : GL_FILL);
+
+			// *** CAMERA ***
+			camera.Move(window, deltaTime);
+			camera.UpdateCursorLockState(window);
+			if (camera.GetMouseState())
+				view = camera.CameraLookMatrix(window);
+			// *** CAMERA ***
+		}
+
 
 		// REDO REDO REDO REDO *** DRAW CALL
 		glBeginQuery(GL_PRIMITIVES_GENERATED, query);
+		//
 
 		shader.Bind();
 		{
  			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3{0});
  			glm::mat4 mvp = proj * view * model;
-
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
 			std::unordered_map<std::pair<int, int>, char, PairHash> visibleChunks;
-
 			glm::vec2 camPos2D = glm::vec2(camera.m_CameraPos.x, camera.m_CameraPos.z);
-			for (int x = -renderDistance; x <= renderDistance; x++)
+			for (int x = -renderDistance; x < renderDistance; x++)
 			{
-				for (int z = -renderDistance; z <= renderDistance; z++)
+				for (int z = -renderDistance; z < renderDistance; z++)
 				{
 					glm::vec2 offset = glm::vec2(x, z);
 					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
 					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
-					
+
 					if (glm::length(offset) > renderDistance)
 					{
 						if (visibleChunks.contains({ chunkCoord.x, chunkCoord.y }))
@@ -292,7 +269,7 @@ int main()
 					Chunk& chunk = it->second;
 					vb.Free(chunk.m_VBOLayout.offset, chunk.m_VBOLayout.size);
 					ib.Free(chunk.m_IBOLayout.offset, chunk.m_IBOLayout.size);
-					
+
 					clear.push_back(it->first);
 				}
 			}
@@ -309,26 +286,25 @@ int main()
 
 				if (!loadedChunks.contains({ x,y }))
 				{
-					auto chunk = GenerateChunk(x, y);
-					loadedChunks[{x, y}] = chunk;
+					Chunk chunk;
+					chunk.GenerateChunk(noise, x, y);
+					loadedChunks.insert({ {x,y},chunk });
 				}
-				AllocateChunk(loadedChunks[{x,y}], vb, ib, x, y);
-			}
 
-			for (const auto& it : visibleChunks)
-			{
-				int x = it.first.first;
-				int y = it.first.second;
+				for (auto& it : visibleChunks)
+				{
+					loadedChunks.at({x,y}).AllocateChunk(vb, ib, x, y);
+				}
 
-				DrawCall(shader, vao, vb, ib, loadedChunks[{x,y}]);
+				DrawCall(shader, vao, vb, ib, loadedChunks[{x, y}]);
 			}
 		}
 
+		//
 		glEndQuery(GL_PRIMITIVES_GENERATED);
 		int primitives = 0;
-
 		glGetQueryObjectiv(query, GL_QUERY_RESULT, &primitives);
-		// *** DRAW CALL
+		// REDO REDO REDO REDO *** DRAW CALL
 
 		// *** IMGUI ***
 		{

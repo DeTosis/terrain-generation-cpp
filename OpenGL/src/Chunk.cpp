@@ -6,6 +6,39 @@ Chunk::Chunk()
 	std::fill_n(&m_Chunk[0][0][0], m_ChunkSize * m_ChunkHeight * m_ChunkSize, BlockType::AIR);
 }
 
+void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
+{
+	if (state != RenderState::NONE)
+	{
+		exit(-1);
+	}
+
+	SetWorldPosition(x, y);
+	GenerateTerrain(noise);
+	GenerateBlocks();
+
+	m_VBOLayout.size = m_MeshData.vertices.size() * sizeof(float);
+	m_IBOLayout.size = m_MeshData.indices.size() * sizeof(unsigned int);
+	
+	state = RenderState::GENERATED;
+}
+
+void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib, int x, int y)
+{
+	if (state != RenderState::GENERATED)
+		return;
+
+	vb.Bind();
+	m_VBOLayout.offset = vb.Allocate(
+			m_MeshData.vertices.data(), m_VBOLayout.size);
+
+	ib.Bind();
+	m_IBOLayout.offset = ib.Allocate(
+			m_MeshData.indices.data(), m_IBOLayout.size);
+
+	state = RenderState::ALLOCATED;
+}
+
 void Chunk::GenerateTerrain(FastNoiseLite& noise)
 {
 	float heightMap[m_ChunkSize][m_ChunkSize];
