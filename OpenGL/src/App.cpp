@@ -93,6 +93,9 @@ static FastNoiseLite noise;
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk& chunk)
 {
+	if (chunk.state != RenderState::ALLOCATED)
+		return;
+	
 	shader.Bind();
 	glBindVertexArray(vao);
 	vb.Bind();
@@ -188,7 +191,7 @@ int main()
 	Shader shader("res/shaders/basic.shader");
 
 	float fov = 80.0f;
-	glm::mat4 proj = glm::perspective(glm::radians(fov), height / width, 0.1f, 100.0f);
+	glm::mat4 proj = glm::perspective(glm::radians(fov), height / width, 0.1f, 1000.0f);
 	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
 
 	glEnable(GL_DEPTH_TEST);
@@ -228,83 +231,67 @@ int main()
 		}
 
 
-		// REDO REDO REDO REDO *** DRAW CALL
 		glBeginQuery(GL_PRIMITIVES_GENERATED, query);
-		//
-
 		shader.Bind();
 		{
  			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3{0});
  			glm::mat4 mvp = proj * view * model;
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
-			std::unordered_map<std::pair<int, int>, char, PairHash> visibleChunks;
+			std::unordered_set<std::pair<int,int>, PairHash> visibleChunks;
 			glm::vec2 camPos2D = glm::vec2(camera.m_CameraPos.x, camera.m_CameraPos.z);
 			for (int x = -renderDistance; x < renderDistance; x++)
 			{
 				for (int z = -renderDistance; z < renderDistance; z++)
 				{
-					glm::vec2 offset = glm::vec2(x, z);
+
+					glm::vec2 offset = glm::vec2(x,z);
 					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
 					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
-
+					
 					if (glm::length(offset) > renderDistance)
 					{
-						if (visibleChunks.contains({ chunkCoord.x, chunkCoord.y }))
-						{
-							visibleChunks.erase({ chunkCoord.x, chunkCoord.y });
-						}
 						continue;
 					}
-					visibleChunks[{ chunkCoord.x, chunkCoord.y }] = ' ';
+					visibleChunks.insert({ chunkCoord.x, chunkCoord.y });
 				}
 			}
 
-			std::vector<std::pair<int, int>> clear;
-			for (auto it = loadedChunks.begin(); it != loadedChunks.end(); it++)
+			for (const auto& it : loadedChunks)
 			{
-				auto& pos = it->first;
-				if (!visibleChunks.contains(pos))
+				int x = it.first.first;
+				int y = it.first.second;
+				if (!visibleChunks.contains({x,y}))
 				{
-					Chunk& chunk = it->second;
-					vb.Free(chunk.m_VBOLayout.offset, chunk.m_VBOLayout.size);
-					ib.Free(chunk.m_IBOLayout.offset, chunk.m_IBOLayout.size);
-
-					clear.push_back(it->first);
+					loadedChunks[{x,y}].UnLoad(vb,ib);
 				}
-			}
-
-			for (const auto& it : clear)
-			{
-				loadedChunks.erase(it);
 			}
 
 			for (const auto& it : visibleChunks)
 			{
-				int x = it.first.first;
-				int y = it.first.second;
+				int x = it.first;
+				int y = it.second;
 
+				Chunk chunk;
 				if (!loadedChunks.contains({ x,y }))
 				{
-					Chunk chunk;
 					chunk.GenerateChunk(noise, x, y);
-					loadedChunks.insert({ {x,y},chunk });
+					loadedChunks.insert({ { x,y },chunk });
 				}
+				loadedChunks.at({ x,y }).AllocateChunk(vb, ib);
+			}
 
-				for (auto& it : visibleChunks)
-				{
-					loadedChunks.at({x,y}).AllocateChunk(vb, ib, x, y);
-				}
+			for (auto& it : loadedChunks)
+			{
+				int x = it.first.first;
+				int y = it.first.second;
 
 				DrawCall(shader, vao, vb, ib, loadedChunks[{x, y}]);
 			}
 		}
-
-		//
 		glEndQuery(GL_PRIMITIVES_GENERATED);
 		int primitives = 0;
 		glGetQueryObjectiv(query, GL_QUERY_RESULT, &primitives);
-		// REDO REDO REDO REDO *** DRAW CALL
 
 		// *** IMGUI ***
 		{
@@ -325,6 +312,14 @@ int main()
 			ImGui::Text("Camera vec: %.f x | %.f y", cos(camera.m_Pitch), sin(camera.m_Yaw));
 			ImGui::Text("Camera frn: %.f x | %.f y | %.f z", camera.m_CameraFront.x, camera.m_CameraFront.y, camera.m_CameraFront.z);
 			ImGui::Text("Chunk  pos: %.f x | %.f y | %.f z", pos.x,pos.y,pos.z);
+
+			int freeVb = 0;
+			for (const auto& it : vb.m_FreeList)
+			{
+				freeVb += it.size;
+			}
+			ImGui::Text("VBO Free list %.iKb", freeVb / 1024);
+
 			if (ImGui::Button("Reset Camera"))
 			{
 				camera.m_CameraPos = glm::vec3(0, 0, 3);

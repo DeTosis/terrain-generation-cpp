@@ -23,7 +23,7 @@ void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
 	state = RenderState::GENERATED;
 }
 
-void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib, int x, int y)
+void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 {
 	if (state != RenderState::GENERATED)
 		return;
@@ -37,6 +37,20 @@ void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib, int x, int y)
 			m_MeshData.indices.data(), m_IBOLayout.size);
 
 	state = RenderState::ALLOCATED;
+}
+
+void Chunk::UnLoad(VertexBuffer& vb, IndexBuffer& ib)
+{
+	if (state != RenderState::ALLOCATED)
+		return;
+
+	vb.Free(m_VBOLayout.offset, m_VBOLayout.size);
+	ib.Free(m_IBOLayout.offset, m_IBOLayout.size);
+
+	m_VBOLayout.offset = -1;
+	m_IBOLayout.offset = -1;
+
+	state = RenderState::GENERATED;
 }
 
 void Chunk::GenerateTerrain(FastNoiseLite& noise)

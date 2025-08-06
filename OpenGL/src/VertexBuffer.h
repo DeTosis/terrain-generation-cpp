@@ -15,8 +15,10 @@ private:
 		std::size_t offset;
 		std::size_t size;
 	};
+	
 	unsigned int m_RendererId;
 	unsigned int m_TotalSize = 64 * 1024 * 1024;
+public:
 	std::vector<Header> m_FreeList;
 public:
 	VertexBuffer();
