@@ -133,18 +133,19 @@ std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, in
 static std::mutex mtx;
 void ThreadChunkGeneration(
 	std::unordered_map<std::pair<int, int>, Chunk*, PairHash>& loadedChunks, 
-	FastNoiseLite& noise, int x, int y)
+	FastNoiseLite& noise, int x, int y, std::promise<void> p)
 {
 	Chunk* chunk = new Chunk();
 	chunk->GenerateTerrain(noise, x, y);
 
 	//std::cout << chunk->m_Mesh.vboLayout.size / 1024 << std::endl;
 
-	std::lock_guard<std::mutex> lock(mtx);
 	if (!loadedChunks.contains({ x,y }))
 	{
 		loadedChunks.insert({ {x,y} , std::move(chunk)});
 	}
+
+	p.set_value();
 }
 /*
 *
@@ -238,6 +239,13 @@ int main()
 	int maxThreadCount = std::thread::hardware_concurrency() / 2;
 	bool threadActive = false;
 	std::thread tr;
+	std::future<void> f;
+
+	bool threadActive1 = false;
+	std::thread tr1;
+	std::future<void> f1;
+
+
 	while (!glfwWindowShouldClose(window))
 	{
 		{
@@ -305,21 +313,60 @@ int main()
 					if (!queuedGenerations.contains({ x,y }) && !threadActive)
 					{
 						queuedGenerations.insert({x,y});
-						std::thread t(ThreadChunkGeneration, std::ref(loadedChunks), std::ref(noise), x, y);
+
+						std::promise<void> p;
+						f = p.get_future();
+
+						std::thread t(
+							ThreadChunkGeneration, 
+							std::ref(loadedChunks), 
+							std::ref(noise), x, y, 
+							std::move(p)
+						);
+
 						threadActive = true;
 						tr = std::move(t);
+					}
+
+					if (!queuedGenerations.contains({ x,y }) && !threadActive1)
+					{
+						queuedGenerations.insert({ x,y });
+
+						std::promise<void> p;
+						f1 = p.get_future();
+
+						std::thread t(
+							ThreadChunkGeneration,
+							std::ref(loadedChunks),
+							std::ref(noise), x, y,
+							std::move(p)
+						);
+
+						threadActive1 = true;
+						tr1 = std::move(t);
 					}
 				}
 			}
 
-			if (tr.joinable())
+			if (f._Is_ready())
 			{
-				tr.join();
-				threadActive = false;
+				if (tr.joinable())
+				{
+					tr.join();
+					threadActive = false;
+				}
+			}
+
+			if (f1._Is_ready())
+			{
+				if (tr1.joinable())
+				{
+					tr1.join();
+					threadActive1 = false;
+				}
 			}
 
 			{
-				std::lock_guard<std::mutex> lock(mtx);
 				for (auto it = queuedGenerations.begin(); it != queuedGenerations.end();)
 				{
 					auto& [x, y] = *it;
@@ -351,6 +398,11 @@ int main()
 
 		// *** IMGUI ***
 		{
+			ImGui::Text("Render Distance");
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(100);
+			ImGui::SliderInt("##.", &renderDistance, 1, 32);
+
 			ImGui::Checkbox("Wireframe", &wireframe);
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 			ImGui::Text("Delta Time %.f ms", deltaTime * 1000.0f);
