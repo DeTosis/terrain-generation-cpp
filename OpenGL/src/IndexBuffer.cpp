@@ -49,8 +49,34 @@ int IndexBuffer::Allocate(const void* data, const size_t& size)
 			glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, size, data);
 			return static_cast<int>(offset);
 		}
+		
 	}
-	return -1;
+
+	unsigned int temp;
+	glGenBuffers(1, &temp);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, temp);
+
+	size_t oldSize = m_TotalSize;
+	m_FreeList.push_back({ oldSize, oldSize });
+	MergeFreeBlocks();
+
+	m_TotalSize = m_TotalSize * 2;
+	glBufferData(
+		GL_ELEMENT_ARRAY_BUFFER,
+		m_TotalSize,
+		nullptr,
+		GL_DYNAMIC_DRAW
+	);
+
+	glBindBuffer(GL_COPY_READ_BUFFER, m_RendererId);
+	glBindBuffer(GL_COPY_WRITE_BUFFER, temp);
+	glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, oldSize);
+
+	glDeleteBuffers(1, &m_RendererId);
+	m_RendererId = temp;
+	Bind();
+
+	return Allocate(data, size);
 }
 
 void IndexBuffer::Free(const size_t& offset, const size_t& size)

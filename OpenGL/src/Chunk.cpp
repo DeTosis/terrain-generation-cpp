@@ -1,92 +1,105 @@
 #include "Chunk.h"
-#include <iostream>
-#include "measuring/Timer.h"
 
 Chunk::Chunk()
 {
-	std::fill_n(&m_Chunk[0][0][0], m_ChunkSize * m_ChunkHeight * m_ChunkSize, BlockType::AIR);
+	std::fill_n(&m_Terrain[0][0][0], ChunkSizeXY * ChunkHeight * ChunkSizeXY, BlockType::Air);
 }
 
-Chunk::~Chunk()
+size_t Chunk::GetTerrainIndex(int x, int y, int z)
 {
-	std::cout << "Destructor called" << std::endl;
-	delete m_MeshData;
+	return (x + y * ChunkSizeXY + z * ChunkSizeXY * ChunkSizeXY);
 }
 
-void Chunk::GenerateChunk(FastNoiseLite& noise,int x, int y)
+void Chunk::GenerateTerrain(FastNoiseLite& noise,int x, int y)
 {
-	if (state != RenderState::NONE)
-	{
-		exit(-1);
-	}
+	if (state != ChunkState::Undefined)
+		return;
 
 	SetWorldPosition(x, y);
-	GenerateTerrain(noise);
+	CreateMesh(noise);
+	state = ChunkState::TerrainGenerated;
+}
+
+void Chunk::GenerateMesh()
+{
+	if (state != ChunkState::TerrainGenerated)
+		return;
+
 	GenerateBlocks();
 
-	m_VBOLayout.size = m_MeshData->vertices.size() * sizeof(float);
-	m_IBOLayout.size = m_MeshData->indices.size() * sizeof(unsigned int);
-	
-	state = RenderState::GENERATED;
+	m_Mesh.vboLayout.size = m_Mesh.vertices.size() * sizeof(float);
+	m_Mesh.iboLayout.size = m_Mesh.indices.size() * sizeof(unsigned int);
+
+	state = ChunkState::MeshGenerated;
+}
+
+void Chunk::SetNeighbours(NeighbourChunks neighbours)
+{
+	m_Neighbours = neighbours;
 }
 
 void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 {
-	if (state != RenderState::GENERATED)
+	if (state != ChunkState::MeshGenerated)
 		return;
 
+	int hresult = -1;
 	vb.Bind();
-	m_VBOLayout.offset = vb.Allocate(
-			m_MeshData->vertices.data(), m_VBOLayout.size);
-
+	m_Mesh.vboLayout.offset = vb.Allocate(
+			m_Mesh.vertices.data(), m_Mesh.vboLayout.size);
+	
 	ib.Bind();
-	m_IBOLayout.offset = ib.Allocate(
-			m_MeshData->indices.data(), m_IBOLayout.size);
+	m_Mesh.iboLayout.offset = ib.Allocate(
+		m_Mesh.indices.data(), m_Mesh.iboLayout.size);
 
-	state = RenderState::ALLOCATED;
+	if (m_Mesh.iboLayout.offset >= 0 && m_Mesh.vboLayout.offset >= 0)
+		state = ChunkState::ChunkAllocated;
 }
 
-void Chunk::UnLoad(VertexBuffer& vb, IndexBuffer& ib)
+void Chunk::Deallocate(VertexBuffer& vb, IndexBuffer& ib)
 {
-	if (state != RenderState::ALLOCATED)
+	if (state != ChunkState::ChunkAllocated)
 		return;
 
-	vb.Free(m_VBOLayout.offset, m_VBOLayout.size);
-	ib.Free(m_IBOLayout.offset, m_IBOLayout.size);
+	vb.Free(m_Mesh.vboLayout.offset, m_Mesh.vboLayout.size);
+	ib.Free(m_Mesh.iboLayout.offset, m_Mesh.iboLayout.size);
 
-	m_VBOLayout.offset = -1;
-	m_IBOLayout.offset = -1;
+	m_Mesh.vboLayout.offset = -1;
+	m_Mesh.iboLayout.offset = -1;
 
-	state = RenderState::GENERATED;
+	state = ChunkState::MeshGenerated;
 }
 
-void Chunk::GenerateTerrain(FastNoiseLite& noise)
+void Chunk::CreateMesh(FastNoiseLite& noise)
 {
-	float heightMap[m_ChunkSize][m_ChunkSize];
+	float heightMap[ChunkSizeXY][ChunkSizeXY];
 
-	for (int x = 0; x < m_ChunkSize; x++)
+	for (int x = 0; x < ChunkSizeXY; x++)
 	{
-		for (int y = 0; y < m_ChunkSize; y++)
+		for (int y = 0; y < ChunkSizeXY; y++)
 		{
-			float worldX = m_WorldX * static_cast<float>(m_ChunkSize) + x;
-			float worldY = m_WorldY * static_cast<float>(m_ChunkSize) + y;
+			float worldX = m_WorldX * static_cast<float>(ChunkSizeXY) + x;
+			float worldY = m_WorldY * static_cast<float>(ChunkSizeXY) + y;
 
 			float noiseValue = noise.GetNoise(worldX, worldY);
 			float normalized = (noiseValue + 1.0f) / 2.0f;
 
-			heightMap[x][y] = normalized * m_ChunkHeight - 1.0f;
+			heightMap[x][y] = normalized * ChunkHeight / 2;
 		}
 	}
 
-	for (int x = 0; x < m_ChunkSize; x++)
+	for (int x = 0; x < ChunkSizeXY; x++)
 	{
-		for (int y = 0; y < m_ChunkSize; y++)
+		for (int y = 0; y < ChunkSizeXY; y++)
 		{
 			int height = static_cast<int>(heightMap[x][y]);
-			for (int z = 0; z < m_ChunkHeight; z++)
+			for (int z = 0; z < ChunkHeight; z++)
 			{
 				if (z < height)
-					m_Chunk[x][z][y] = BlockType::DEV;
+					m_Terrain[x][z][y] = BlockType::Undefined;
+
+				if (z > ChunkHeight / 2)
+					m_Terrain[x][z][y] = BlockType::Air;
 			}
 		}
 	}
@@ -100,46 +113,53 @@ void Chunk::SetWorldPosition(int x, int y)
 
 void Chunk::GenerateBlocks()
 {
-	Block block;
-	for (int x = 0; x < m_ChunkSize; x++)
-	{
-		for (int z = 0; z < m_ChunkHeight; z++)
-		{
-			for (int y = 0; y < m_ChunkSize; y++)
-			{
-				block.SetInChunkPosition(x + m_ChunkSize * m_WorldX, z, y + m_ChunkSize * m_WorldY);
 
-				if (m_Chunk[x][z][y] == BlockType::AIR)
+
+	Block block;
+	for (int x = 0; x < ChunkSizeXY; x++)
+	{
+		for (int z = 0; z < ChunkHeight; z++)
+		{
+			for (int y = 0; y < ChunkSizeXY; y++)
+			{
+				block.SetInChunkPosition(
+					{ (int)(x + ChunkSizeXY * m_WorldX),
+					  (int)(z), 
+					  (int)(y + ChunkSizeXY * m_WorldY)
+					});
+
+				if (m_Terrain[x][z][y] == BlockType::Air)
 					continue;
 
-				if (x == 0 || m_Chunk[x - 1][z][y] == BlockType::AIR)
-					block.AddFace(Block::Face::LEFT);
+				if (x == 0 || m_Terrain[x - 1][z][y] == BlockType::Air)
+					block.AppendFace(Face::LEFT);
 
-				if (x + 1 == m_ChunkSize || m_Chunk[x + 1][z][y] == BlockType::AIR)
-					block.AddFace(Block::Face::RIGHT);
+				if (x + 1 == ChunkSizeXY || m_Terrain[x + 1][z][y] == BlockType::Air)
+					block.AppendFace(Face::RIGHT);
 
-				if (y == 0 || m_Chunk[x][z][y - 1] == BlockType::AIR)
-					block.AddFace(Block::Face::BACK);
+				if (y == 0 || m_Terrain[x][z][y - 1] == BlockType::Air)
+					block.AppendFace(Face::BACK);
 
-				if (y + 1 == m_ChunkSize || m_Chunk[x][z][y + 1] == BlockType::AIR)
-					block.AddFace(Block::Face::FRONT);
+				if (y + 1 == ChunkSizeXY || m_Terrain[x][z][y + 1] == BlockType::Air)
+					block.AppendFace(Face::FRONT);
 
-				if (z == 0 || m_Chunk[x][z - 1][y] == BlockType::AIR)
-					block.AddFace(Block::Face::BOTTOM);
+				if (z == 0 || m_Terrain[x][z - 1][y] == BlockType::Air)
+					block.AppendFace(Face::BOTTOM);
 
-				if (z + 1 == m_ChunkHeight || m_Chunk[x][z + 1][y] == BlockType::AIR)
-					block.AddFace(Block::Face::TOP);
+				if (z + 1 == ChunkHeight || m_Terrain[x][z + 1][y] == BlockType::Air)
+					block.AppendFace(Face::TOP);
 
-				block.m_VertexOffset = m_MeshData->vertices.size() / m_VertexSize;
+				block.m_VertexOffset = m_Mesh.vertices.size() / m_VertexSize;
 
-				block.Assemble();
+				block.BuldMesh();
 
-				m_MeshData->vertices.insert(m_MeshData->vertices.end(), block.m_Vertices.begin(), block.m_Vertices.end());
-				m_MeshData->indices.insert(m_MeshData->indices.end(), block.m_Indices.begin(), block.m_Indices.end());
+				m_Mesh.vertices.insert(m_Mesh.vertices.end(), 
+					block.m_BlockData.blockVertices.begin(), block.m_BlockData.blockVertices.end());
+				m_Mesh.indices.insert(m_Mesh.indices.end(), 
+					block.m_BlockData.blockIndices.begin(), block.m_BlockData.blockIndices.end());
 				
 				block.Clear();
 			}
 		}
 	}
 }
-
