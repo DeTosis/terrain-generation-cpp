@@ -7,8 +7,9 @@ inline constexpr unsigned int ChunkHeight = ChunkSizeXY * 4;
 enum class ChunkState
 {
 	Undefined,
-	Generated,
-	Allocated,
+	TerrainGenerated,
+	MeshGenerated,
+	ChunkAllocated,
 };
 
 struct VertexBufferLayout

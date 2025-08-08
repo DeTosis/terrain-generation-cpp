@@ -162,6 +162,7 @@
     <ClCompile Include="src\vendor\imgui\imgui_widgets.cpp" />
     <ClCompile Include="src\VertexBuffer.cpp" />
     <ClCompile Include="src\winApi\Memory.cpp" />
+    <ClCompile Include="src\world\WorldGeneration.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="res\shaders\basic.shader">
@@ -664,6 +665,7 @@
     <ClInclude Include="src\winApi\Memory.h" />
     <ClInclude Include="src\world\UniBlockData.h" />
     <ClInclude Include="src\world\UniChunkData.h" />
+    <ClInclude Include="src\world\WorldGeneration.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="src\vendor\glm\CMakeLists.txt" />

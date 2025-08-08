@@ -18,17 +18,30 @@ void Chunk::GenerateTerrain(FastNoiseLite& noise,int x, int y)
 
 	SetWorldPosition(x, y);
 	CreateMesh(noise);
+	state = ChunkState::TerrainGenerated;
+}
+
+void Chunk::GenerateMesh()
+{
+	if (state != ChunkState::TerrainGenerated)
+		return;
+
 	GenerateBlocks();
 
 	m_Mesh.vboLayout.size = m_Mesh.vertices.size() * sizeof(float);
 	m_Mesh.iboLayout.size = m_Mesh.indices.size() * sizeof(unsigned int);
 
-	state = ChunkState::Generated;
+	state = ChunkState::MeshGenerated;
+}
+
+void Chunk::SetNeighbours(NeighbourChunks neighbours)
+{
+	m_Neighbours = neighbours;
 }
 
 void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 {
-	if (state != ChunkState::Generated)
+	if (state != ChunkState::MeshGenerated)
 		return;
 
 	int hresult = -1;
@@ -41,12 +54,12 @@ void Chunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 		m_Mesh.indices.data(), m_Mesh.iboLayout.size);
 
 	if (m_Mesh.iboLayout.offset >= 0 && m_Mesh.vboLayout.offset >= 0)
-		state = ChunkState::Allocated;
+		state = ChunkState::ChunkAllocated;
 }
 
-void Chunk::UnLoad(VertexBuffer& vb, IndexBuffer& ib)
+void Chunk::Deallocate(VertexBuffer& vb, IndexBuffer& ib)
 {
-	if (state != ChunkState::Allocated)
+	if (state != ChunkState::ChunkAllocated)
 		return;
 
 	vb.Free(m_Mesh.vboLayout.offset, m_Mesh.vboLayout.size);
@@ -55,7 +68,7 @@ void Chunk::UnLoad(VertexBuffer& vb, IndexBuffer& ib)
 	m_Mesh.vboLayout.offset = -1;
 	m_Mesh.iboLayout.offset = -1;
 
-	state = ChunkState::Generated;
+	state = ChunkState::MeshGenerated;
 }
 
 void Chunk::CreateMesh(FastNoiseLite& noise)
@@ -72,7 +85,7 @@ void Chunk::CreateMesh(FastNoiseLite& noise)
 			float noiseValue = noise.GetNoise(worldX, worldY);
 			float normalized = (noiseValue + 1.0f) / 2.0f;
 
-			heightMap[x][y] = normalized * ChunkHeight - 1.0f;
+			heightMap[x][y] = normalized * ChunkHeight / 2;
 		}
 	}
 
@@ -85,6 +98,9 @@ void Chunk::CreateMesh(FastNoiseLite& noise)
 			{
 				if (z < height)
 					m_Terrain[x][z][y] = BlockType::Undefined;
+
+				if (z > ChunkHeight / 2)
+					m_Terrain[x][z][y] = BlockType::Air;
 			}
 		}
 	}
@@ -98,6 +114,8 @@ void Chunk::SetWorldPosition(int x, int y)
 
 void Chunk::GenerateBlocks()
 {
+
+
 	Block block;
 	for (int x = 0; x < ChunkSizeXY; x++)
 	{
@@ -145,5 +163,7 @@ void Chunk::GenerateBlocks()
 			}
 		}
 	}
+
+
 }
 

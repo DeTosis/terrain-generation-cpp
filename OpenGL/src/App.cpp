@@ -23,20 +23,22 @@
 #include "VertexBuffer.h"
 #include "Block.h"
 
-#include "fastNoise/FastNoiseLite.h"
 #include "Chunk.h"
 
 #include <unordered_map>
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/fast_trigonometry.hpp>
-#include <unordered_set>
+//#define GLM_ENABLE_EXPERIMENTAL
+//#include <glm/gtx/fast_trigonometry.hpp>
+//#include <unordered_set>
 
 #include <thread>
 #include <queue>
 #include <future>
 #include <mutex>
 #include "winApi/Memory.h"
+#include <set>
+#include <algorithm>
+#include "world/WorldGeneration.h"
 
 float deltaTime;
 float lastFrame = 0.0f;
@@ -88,11 +90,9 @@ struct PairHash
 };
 
 
-static FastNoiseLite noise;
-
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
 {
-	if (chunk->state != ChunkState::Allocated)
+	if (chunk->state != ChunkState::ChunkAllocated)
 		return;
 	
 	shader.Bind();
@@ -108,54 +108,13 @@ void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer&
 		chunk->m_Mesh.vboLayout.offset / (6 * sizeof(float)));
 }
 
-std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, int& radius)
-{
-	std::vector<glm::ivec2> points;
-	int rSquared = radius * radius;
-
-	for (int y = cy - radius; y <= cy + radius; ++y)
-	{
-		for (int x = cx - radius; x <= cx + radius; ++x)
-		{
-			int dx = x - cx;
-			int dy = y - cy;
-
-			if (dx * dx + dy * dy <= rSquared)
-			{
-				points.emplace_back(x, y);
-			}
-		}
-	}
-
-	return points;
-}
-
-static std::mutex mtx;
-void ThreadChunkGeneration(
-	std::unordered_map<std::pair<int, int>, Chunk*, PairHash>& loadedChunks, 
-	FastNoiseLite& noise, int x, int y, std::promise<void> p)
-{
-	Chunk* chunk = new Chunk();
-	chunk->GenerateTerrain(noise, x, y);
-
-	//std::cout << chunk->m_Mesh.vboLayout.size / 1024 << std::endl;
-
-	if (!loadedChunks.contains({ x,y }))
-	{
-		loadedChunks.insert({ {x,y} , std::move(chunk)});
-	}
-
-	p.set_value();
-}
 /*
 *
 *  MAIN
 *
 */
-
 int main()
 {
-#pragma region INIT
 	GLFWwindow* window;
 	if (!glfwInit())
 		return -1;
@@ -185,18 +144,10 @@ int main()
 		nullptr,							// ids
 		GL_FALSE							// enable or disable
 	);
-#pragma endregion
 	
 	unsigned int vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
-
-	noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-	noise.SetSeed(2212313);
-	noise.SetFrequency(0.01f);
-	noise.SetFractalOctaves(3);
-	noise.SetCellularJitter(3.0f);
-	noise.SetFractalLacunarity(2.0f);
 
 	int worldSize = 4;
 
@@ -230,21 +181,8 @@ int main()
 	unsigned int query;
 	glGenQueries(1, &query);
 
-	int renderDistance = 10;
-
-	std::unordered_map<std::pair<int, int>, Chunk*, PairHash> loadedChunks;
-	std::unordered_set<std::pair<int, int>, PairHash> queuedGenerations;
-
-
-	int maxThreadCount = std::thread::hardware_concurrency() / 2;
-	bool threadActive = false;
-	std::thread tr;
-	std::future<void> f;
-
-	bool threadActive1 = false;
-	std::thread tr1;
-	std::future<void> f1;
-
+	int renderDistance = 2;
+	WorldGeneration world(1488);
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -266,130 +204,20 @@ int main()
 			// *** CAMERA ***
 		}
 
-
 		glBeginQuery(GL_PRIMITIVES_GENERATED, query);
-		shader.Bind();
 		{
+			shader.Bind();
  			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3{0});
  			glm::mat4 mvp = proj * view * model;
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
-			std::unordered_set<std::pair<int,int>, PairHash> visibleChunks;
-			glm::vec2 camPos2D = glm::vec2(camera.m_CameraPos.x, camera.m_CameraPos.z);
-			for (int x = -renderDistance; x < renderDistance; x++)
+			world.UpdateChunksInRenderDistance(renderDistance, camera);
+			world.GenerateVisibleChunks();
+			world.PrepareChunksForDraw(vb, ib);
+
+			for (const auto& it : world.m_ChunksToRender)
 			{
-				for (int z = -renderDistance; z < renderDistance; z++)
-				{
-					glm::vec2 offset = glm::vec2(x,z);
-					glm::vec2 worldPos = camPos2D + offset * (float)ChunkSizeXY;
-					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)ChunkSizeXY);
-					
-					if (glm::length(offset) > renderDistance)
-					{
-						continue;
-					}
-					visibleChunks.insert({ chunkCoord.x, chunkCoord.y });
-				}
-			}
-
-			for (const auto& it : loadedChunks)
-			{
-				int x = it.first.first;
-				int y = it.first.second;
-				if (!visibleChunks.contains({x,y}))
-				{
-					loadedChunks.at({x,y})->UnLoad(vb,ib);
-				}
-			}
-
-
-			for (const auto& it : visibleChunks)
-			{
-				int x = it.first;
-				int y = it.second;
-
-				if (!loadedChunks.contains({ x,y }))
-				{
-					if (!queuedGenerations.contains({ x,y }) && !threadActive)
-					{
-						queuedGenerations.insert({x,y});
-
-						std::promise<void> p;
-						f = p.get_future();
-
-						std::thread t(
-							ThreadChunkGeneration, 
-							std::ref(loadedChunks), 
-							std::ref(noise), x, y, 
-							std::move(p)
-						);
-
-						threadActive = true;
-						tr = std::move(t);
-					}
-
-					if (!queuedGenerations.contains({ x,y }) && !threadActive1)
-					{
-						queuedGenerations.insert({ x,y });
-
-						std::promise<void> p;
-						f1 = p.get_future();
-
-						std::thread t(
-							ThreadChunkGeneration,
-							std::ref(loadedChunks),
-							std::ref(noise), x, y,
-							std::move(p)
-						);
-
-						threadActive1 = true;
-						tr1 = std::move(t);
-					}
-				}
-			}
-
-			if (f._Is_ready())
-			{
-				if (tr.joinable())
-				{
-					tr.join();
-					threadActive = false;
-				}
-			}
-
-			if (f1._Is_ready())
-			{
-				if (tr1.joinable())
-				{
-					tr1.join();
-					threadActive1 = false;
-				}
-			}
-
-			{
-				for (auto it = queuedGenerations.begin(); it != queuedGenerations.end();)
-				{
-					auto& [x, y] = *it;
-					if (loadedChunks.contains({x,y}))
-						it = queuedGenerations.erase(it);
-					else
-						it++;
-				}
-			}
-
-			for (const auto& it : visibleChunks)
-			{
-				auto& [x, y] = it;
-				if (loadedChunks.contains({x,y}))
-					loadedChunks.at({ x,y })->AllocateChunk(vb, ib);
-			}
-
-			for (auto& it : loadedChunks)
-			{
-				int x = it.first.first;
-				int y = it.first.second;
-				
-				DrawCall(shader, vao, vb, ib, loadedChunks.at({x, y}));
+				DrawCall(shader, vao, vb, ib, it);
 			}
 		}
 		glEndQuery(GL_PRIMITIVES_GENERATED);
