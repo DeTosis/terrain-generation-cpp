@@ -36,6 +36,7 @@
 #include <queue>
 #include <future>
 #include <mutex>
+#include "winApi/Memory.h"
 
 float deltaTime;
 float lastFrame = 0.0f;
@@ -91,7 +92,7 @@ static FastNoiseLite noise;
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
 {
-	if (chunk->state != RenderState::ALLOCATED)
+	if (chunk->state != ChunkState::Allocated)
 		return;
 	
 	shader.Bind();
@@ -101,10 +102,10 @@ void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer&
 
 	glDrawElementsBaseVertex(
 		GL_TRIANGLES, 
-		chunk->m_MeshData->indices.size(),
+		chunk->m_Mesh.indices.size(),
 		GL_UNSIGNED_INT, 
-		(void*)(chunk->m_IBOLayout.offset),
-		chunk->m_VBOLayout.offset / (6 * sizeof(float)));
+		(void*)(chunk->m_Mesh.iboLayout.offset),
+		chunk->m_Mesh.vboLayout.offset / (6 * sizeof(float)));
 }
 
 std::vector<glm::ivec2> GetChunkPositionsInView(const int& cx, const int& cy, int& radius)
@@ -135,11 +136,13 @@ void ThreadChunkGeneration(
 	FastNoiseLite& noise, int x, int y)
 {
 	Chunk* chunk = new Chunk();
-	chunk->GenerateChunk(noise, x, y);
+	chunk->GenerateTerrain(noise, x, y);
 
+	//std::cout << chunk->m_Mesh.vboLayout.size / 1024 << std::endl;
+
+	std::lock_guard<std::mutex> lock(mtx);
 	if (!loadedChunks.contains({ x,y }))
 	{
-		std::lock_guard<std::mutex> lock(mtx);
 		loadedChunks.insert({ {x,y} , std::move(chunk)});
 	}
 }
@@ -270,8 +273,8 @@ int main()
 				for (int z = -renderDistance; z < renderDistance; z++)
 				{
 					glm::vec2 offset = glm::vec2(x,z);
-					glm::vec2 worldPos = camPos2D + offset * (float)m_ChunkSize;
-					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)m_ChunkSize);
+					glm::vec2 worldPos = camPos2D + offset * (float)ChunkSizeXY;
+					glm::ivec2 chunkCoord = glm::floor(worldPos / (float)ChunkSizeXY);
 					
 					if (glm::length(offset) > renderDistance)
 					{
@@ -338,7 +341,7 @@ int main()
 			{
 				int x = it.first.first;
 				int y = it.first.second;
-
+				
 				DrawCall(shader, vao, vb, ib, loadedChunks.at({x, y}));
 			}
 		}
@@ -359,12 +362,14 @@ int main()
 			ImGui::Text("Camera pos: %.f x | %.f y | %.f z",
 				camera.m_CameraPos[0], camera.m_CameraPos[1], camera.m_CameraPos[2]);
 
-			auto pos = WorldToChunkPos(camera.m_CameraPos, m_ChunkSize);
+			auto pos = WorldToChunkPos(camera.m_CameraPos, ChunkSizeXY);
 
 			ImGui::Text("Camera rot: %.f x | %.f y", camera.m_Pitch, camera.m_Yaw );
 			ImGui::Text("Camera vec: %.f x | %.f y", cos(camera.m_Pitch), sin(camera.m_Yaw));
 			ImGui::Text("Camera frn: %.f x | %.f y | %.f z", camera.m_CameraFront.x, camera.m_CameraFront.y, camera.m_CameraFront.z);
 			ImGui::Text("Chunk  pos: %.f x | %.f y | %.f z", pos.x,pos.y,pos.z);
+
+			ImGui::Text("Memory usage [%d] Mb", Memory::GetCurrentProcessUsage() / (1024 * 1024));
 
 			int freeVb = 0;
 			for (const auto& it : vb.m_FreeList)

@@ -49,8 +49,42 @@ int VertexBuffer::Allocate(const void* data, const size_t& size)
 			glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
 			return static_cast<int>(offset);
 		}
+		
 	}
-	return -1;
+
+	size_t oldSize = m_TotalSize;
+	m_TotalSize *= 2;
+
+	unsigned int temp;
+	glGenBuffers(1, &temp);
+	glBindBuffer(GL_ARRAY_BUFFER, temp);
+	
+	glBufferData(
+		GL_ARRAY_BUFFER,
+		m_TotalSize,
+		nullptr,
+		GL_DYNAMIC_DRAW
+	);
+
+	glBindBuffer(GL_COPY_READ_BUFFER, m_RendererId);
+	glBindBuffer(GL_COPY_WRITE_BUFFER, temp);
+	glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, oldSize);
+
+	glDeleteBuffers(1, &m_RendererId);
+	m_RendererId = temp;
+
+	m_FreeList.push_back({ oldSize, oldSize });
+	MergeFreeBlocks();
+
+	Bind();
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	return Allocate(data, size);
 }
 
 void VertexBuffer::Free(const size_t& offset, const size_t& size)

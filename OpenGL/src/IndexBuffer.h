@@ -16,7 +16,7 @@ private:
 		std::size_t size;
 	};
 	unsigned int m_RendererId;
-	unsigned int m_TotalSize = 64 * 8 * 1024 * 1024;
+	unsigned int m_TotalSize = 16 * (1024);
 	std::vector<Header> m_FreeList;
 public:
 	IndexBuffer();

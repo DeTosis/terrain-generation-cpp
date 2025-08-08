@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -150,9 +150,6 @@
     <ClCompile Include="src\Chunk.cpp" />
     <ClCompile Include="src\ImGuiSup.cpp" />
     <ClCompile Include="src\IndexBuffer.cpp" />
-    <ClCompile Include="src\measuring\ConsoleLog.cpp" />
-    <ClCompile Include="src\measuring\RepeatableTimer.cpp" />
-    <ClCompile Include="src\measuring\ScopeTimer.cpp" />
     <ClCompile Include="src\Shader.cpp" />
     <ClCompile Include="src\vendor\glm\detail\glm.cpp" />
     <ClCompile Include="src\vendor\glm\glm.cppm" />
@@ -164,6 +161,7 @@
     <ClCompile Include="src\vendor\imgui\imgui_tables.cpp" />
     <ClCompile Include="src\vendor\imgui\imgui_widgets.cpp" />
     <ClCompile Include="src\VertexBuffer.cpp" />
+    <ClCompile Include="src\winApi\Memory.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="res\shaders\basic.shader">
@@ -320,7 +318,6 @@
     <ClInclude Include="src\Chunk.h" />
     <ClInclude Include="src\ImGuiSup.h" />
     <ClInclude Include="src\IndexBuffer.h" />
-    <ClInclude Include="src\measuring\Timer.h" />
     <ClInclude Include="src\Shader.h" />
     <ClInclude Include="src\vendor\fastNoise\FastNoiseLite.h" />
     <ClInclude Include="src\vendor\glm\common.hpp" />
@@ -664,6 +661,9 @@
     <ClInclude Include="src\vendor\libnoise\noisegen.h" />
     <ClInclude Include="src\vendor\libnoise\vectortable.h" />
     <ClInclude Include="src\VertexBuffer.h" />
+    <ClInclude Include="src\winApi\Memory.h" />
+    <ClInclude Include="src\world\UniBlockData.h" />
+    <ClInclude Include="src\world\UniChunkData.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="src\vendor\glm\CMakeLists.txt" />
