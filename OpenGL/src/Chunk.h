@@ -7,13 +7,6 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 
-/* Multipart rendering 
-*  - Generate noise based terrain
-*  - For a chunk assign references to a neighbours
-*  - Wait before all surrounding chunks done with terraing generation
-*  - Generate and render mesh
-*/
-
 class Chunk;
 struct NeighbourChunks
 {

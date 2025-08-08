@@ -3,12 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <sstream>
-
-#include <print>
-#include "Shader.h"
+#include <unordered_map>
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -16,46 +11,22 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
-#include "Camera.h"
-#include "ImGuiSup.h"
 
+#include "Shader.h"
 #include "IndexBuffer.h"
 #include "VertexBuffer.h"
-#include "Block.h"
 
+#include "ImGuiSup.h"
+#include "Camera.h"
+
+#include "Block.h"
 #include "Chunk.h"
 
-#include <unordered_map>
-
-//#define GLM_ENABLE_EXPERIMENTAL
-//#include <glm/gtx/fast_trigonometry.hpp>
-//#include <unordered_set>
-
-#include <thread>
-#include <queue>
-#include <future>
-#include <mutex>
 #include "winApi/Memory.h"
-#include <set>
-#include <algorithm>
 #include "world/WorldGeneration.h"
 
 float deltaTime;
 float lastFrame = 0.0f;
-
-static void APIENTRY GLCallback(
-	GLenum source,
-	GLenum type,
-	GLuint id,
-	GLenum severity,
-	GLsizei length,
-	const GLchar* message,
-	const void* userParam)
-{
-	fprintf(stderr, "%s type = 0x%x, severity = 0x%x, message = %s\n",
-		(type == GL_DEBUG_TYPE_ERROR ? "[ OpenGL ERROR ]" : "[ OpenGL DEBUG ]"),
-		type, severity, message);
-}
 
 void UpdateDeltaTime()
 {
@@ -64,11 +35,7 @@ void UpdateDeltaTime()
 	lastFrame = current;
 }
 
-void SetWireframeMode(unsigned int mode)
-{
-	glPolygonMode(GL_FRONT_AND_BACK, mode);
-}
-
+void SetWireframeMode(unsigned int mode) { glPolygonMode(GL_FRONT_AND_BACK, mode); }
 glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkSize)
 {
 	return glm::vec3({
@@ -80,14 +47,6 @@ glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkS
 
 float height = 1280;
 float width = 720;
-
-struct PairHash
-{
-	std::size_t operator()(const std::pair<int, int>& p) const
-	{
-		return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
-	}
-};
 
 
 void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
@@ -108,11 +67,6 @@ void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer&
 		chunk->m_Mesh.vboLayout.offset / (6 * sizeof(float)));
 }
 
-/*
-*
-*  MAIN
-*
-*/
 int main()
 {
 	GLFWwindow* window;
@@ -134,30 +88,19 @@ int main()
 		return -1;
 	}
 
-	glEnable(GL_DEBUG_OUTPUT);
-	glDebugMessageCallback(GLCallback, 0);
-	glDebugMessageControl(
-		GL_DONT_CARE,						// source
-		GL_DONT_CARE,						// type
-		GL_DEBUG_SEVERITY_NOTIFICATION,		// severity
-		0,									// count
-		nullptr,							// ids
-		GL_FALSE							// enable or disable
-	);
-	
 	unsigned int vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	int worldSize = 4;
-
 	VertexBuffer vb;
 	vb.Bind();
+
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+	
 	IndexBuffer ib;
 	ib.Bind();
 
@@ -173,10 +116,9 @@ int main()
 	bool wireframe = false;
 
 	ImGuiSup gui(window);
+	
 	Camera camera(0.1f, 10.0f);
 	view = camera.CameraLookMatrix(window);
-
-	glm::vec3 translation { 0 };
 
 	unsigned int query;
 	glGenQueries(1, &query);

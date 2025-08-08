@@ -1,5 +1,4 @@
 #include "Chunk.h"
-#include <iostream>
 
 Chunk::Chunk()
 {
@@ -163,7 +162,4 @@ void Chunk::GenerateBlocks()
 			}
 		}
 	}
-
-
 }
-
