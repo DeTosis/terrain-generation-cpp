@@ -69,7 +69,7 @@ void WorldChunk::GenerateTerrain()
 
 void WorldChunk::GenerateMesh()
 {
-	if (m_ChunkState != ChunkState::TerrainGenerated)
+	if (m_ChunkState != ChunkState::NeighboursGenerated)
 		return;
 
 	CreateMesh();
@@ -102,24 +102,68 @@ void WorldChunk::CreateMesh()
 				if (m_Terrain.at(GetIndex(x,y,z)) == BlockType::Air)
 					continue;
 
-				if (x == 0 || m_Terrain.at(GetIndex(x-1, y, z)) == BlockType::Air)
-					block.AppendFace(Face::LEFT);
+				if (x == 0 || m_Terrain.at(GetIndex(x - 1, y, z)) == BlockType::Air)
+				{
+					if (x == 0)
+					{
+						auto chunk = m_Neighbours.xNeg;
+						BlockType bt;
+						if (chunk->GetTerrainAtIndex(bt, ChunkSizeXY - 1, y, z) && bt == BlockType::Air)
+							block.AppendFace(Face::LEFT);
+					}
+					else
+						block.AppendFace(Face::LEFT);
+				}
 
-				if (x + 1 == ChunkSizeXY || m_Terrain.at(GetIndex(x + 1, y, z)) == BlockType::Air)
-					block.AppendFace(Face::RIGHT);
+				if (x + 1 == ChunkSizeXY || (m_Terrain.at(GetIndex(x + 1, y, z)) == BlockType::Air))
+				{
+					if (x + 1 == ChunkSizeXY)
+					{
+						auto chunk = m_Neighbours.xPos;
+						BlockType bt;
+						if (chunk->GetTerrainAtIndex(bt, 0, y, z) && bt == BlockType::Air)
+							block.AppendFace(Face::RIGHT);
+					}
+					else 
+						block.AppendFace(Face::RIGHT);
+				}
 
 				if (y == 0 || m_Terrain.at(GetIndex(x, y - 1, z)) == BlockType::Air)
-					block.AppendFace(Face::BACK);
+				{
+					if (y == 0)
+					{
+						auto chunk = m_Neighbours.yNeg;
+						BlockType bt;
+						if (chunk->GetTerrainAtIndex(bt, x, ChunkSizeXY - 1, z) && bt == BlockType::Air)
+							block.AppendFace(Face::BACK);
+					}
+					else
+						block.AppendFace(Face::BACK);
+				}
 
 				if (y + 1 == ChunkSizeXY || m_Terrain.at(GetIndex(x, y + 1, z)) == BlockType::Air)
-					block.AppendFace(Face::FRONT);
+				{
+					if (y + 1 == ChunkSizeXY)
+					{
+						auto chunk = m_Neighbours.yPos;
+						BlockType bt;
+						if (chunk->GetTerrainAtIndex(bt, x, 0, z) && bt == BlockType::Air)
+							block.AppendFace(Face::FRONT);
+					}
+					else
+						block.AppendFace(Face::FRONT);
+				}
 
 				if (z == 0 || m_Terrain.at(GetIndex(x, y, z - 1)) == BlockType::Air)
-					block.AppendFace(Face::BOTTOM);
+				{
+					if (z > 0)
+						block.AppendFace(Face::BOTTOM);
+				}
 
 				if (z + 1 == ChunkHeight || m_Terrain.at(GetIndex(x, y, z + 1)) == BlockType::Air)
+				{
 					block.AppendFace(Face::TOP);
-
+				}
 				block.m_VertexOffset = m_Mesh->vertices.size() / m_VertexSize;
 
 				block.BuldMesh();
@@ -135,12 +179,13 @@ void WorldChunk::CreateMesh()
 	}
 }
 
-void WorldChunk::GetTerrainAtIndex(BlockType& outType,  int x, int y, int z)
+bool WorldChunk::GetTerrainAtIndex(BlockType& outType,  int x, int y, int z)
 {
 	if (x > ChunkSizeXY || y > ChunkSizeXY || z > ChunkHeight) 
-		return;
+		return false;
 	
 	outType = m_Terrain.at(x + y * ChunkSizeXY + z * ChunkSizeXY * ChunkSizeXY);
+	return true;
 }
 
 int WorldChunk::GetIndex(int x, int y, int z) const
@@ -164,6 +209,11 @@ ChunkMesh* WorldChunk::GetMesh() const
 ChunkState WorldChunk::GetState() const
 {
 	return m_ChunkState;
+}
+
+void WorldChunk::SetState(ChunkState state)
+{
+	m_ChunkState = ChunkState::NeighboursGenerated;
 }
 
 void WorldChunk::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib)
@@ -196,4 +246,13 @@ void WorldChunk::DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib)
 	m_Mesh->iboLayout.offset = -1;
 
 	m_ChunkState = ChunkState::MeshGenerated;
+}
+
+bool WorldChunk::IsEmptyNeighbours()
+{
+	return
+		m_Neighbours.xNeg == nullptr || 
+		m_Neighbours.xPos == nullptr || 
+		m_Neighbours.yNeg == nullptr || 
+		m_Neighbours.yPos == nullptr;
 }

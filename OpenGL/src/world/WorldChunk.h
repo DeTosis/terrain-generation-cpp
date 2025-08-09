@@ -20,14 +20,14 @@ class WorldChunk
 {
 private:
 	unsigned int m_VertexSize = 6;
-	int m_WorldX = 0;
-	int m_WorldY = 0;
 	std::vector<BlockType> m_Terrain;
 	NeighbourChunks m_Neighbours;
 	ChunkMesh* m_Mesh = new ChunkMesh();
 	ChunkState m_ChunkState = ChunkState::Undefined;
 	FastNoiseLite* m_Noise = nullptr;
 public:
+	int m_WorldX = 0;
+	int m_WorldY = 0;
 public:
 	WorldChunk(FastNoiseLite& noise);
 	void SetWorldPosition(int worldX, int worldY);
@@ -38,11 +38,14 @@ public:
 	void AllocateChunk(VertexBuffer& vb, IndexBuffer& ib);
 	void DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib);
 
-	void GetTerrainAtIndex(BlockType& outType, int x, int y, int z);
+	bool IsEmptyNeighbours();
+
+	bool GetTerrainAtIndex(BlockType& outType, int x, int y, int z);
 	int GetIndex(int x, int y, int z) const;
 	std::vector<BlockType>* GetTerrain();
 	ChunkMesh* GetMesh() const;
 	ChunkState GetState() const;
+	void SetState(ChunkState state) ;
 private:
 	void CreateMesh();
 };

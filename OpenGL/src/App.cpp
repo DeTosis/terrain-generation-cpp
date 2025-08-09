@@ -75,9 +75,6 @@ void DrawCall(
 
 int main()
 {
-
-
-
 	GLFWwindow* window;
 	if (!glfwInit())
 		return -1;
@@ -132,7 +129,7 @@ int main()
 	unsigned int query;
 	glGenQueries(1, &query);
 
-	int renderDistance = 2;
+	int renderDistance = 4;
 	WorldGeneration world(1488);
 	while (!glfwWindowShouldClose(window))
 	{
@@ -163,6 +160,7 @@ int main()
 
 			world.UpdateChunksInRenderDistance(renderDistance, camera);
 			world.GenerateVisibleChunks();
+			world.UpdateChunks();
 			world.PrepareChunksForDraw(vb, ib);
 
 			for (const auto& it : world.m_ChunksToRender)

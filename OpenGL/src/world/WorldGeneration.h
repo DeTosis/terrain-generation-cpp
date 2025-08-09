@@ -34,11 +34,13 @@ public:
 	void PrepareChunksForDraw(VertexBuffer& vb, IndexBuffer& ib);
 
 public:
-	void GenerateChunk(int worldX, int worldY);
+	void PreGenerateChunk(int worldX, int worldY);
+	void UpdateChunks();
 
 	void AllocateChunk(VertexBuffer& vb, IndexBuffer& ib,int worldX, int worldY);
 	void DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int worldX, int worldY);
 private:
+	void UpdateNeighbours(WorldChunk* chunk);
 	void GenerateNoise(int seed);
 	bool IsChunkLoaded(int worldX, int worldY);
 	WorldChunk* GetChunk(int worldX, int worldY);
