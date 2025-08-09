@@ -4,7 +4,7 @@
 #include "glm/glm.hpp"
 
 #include "UniChunkData.h"
-#include "../Chunk.h"
+#include "WorldChunk.h"
 #include "../Camera.h"
 
 struct ChunkWithDist
@@ -16,7 +16,7 @@ struct ChunkWithDist
 struct ChunksMap
 {
 	std::pair<int, int> coords;
-	Chunk* chunk;
+	WorldChunk* chunk;
 };
 
 class WorldGeneration
@@ -26,7 +26,7 @@ private:
 	std::vector<ChunksMap> m_LoadedChunks;
 	std::vector<std::pair<int,int>> m_ChunksInRenderDistance;
 public:
-	std::vector<Chunk*> m_ChunksToRender;
+	std::vector<WorldChunk*> m_ChunksToRender;
 public:
 	WorldGeneration(int seed);
 	void UpdateChunksInRenderDistance(int chunkRenderDistance, Camera& camera);
@@ -41,5 +41,5 @@ public:
 private:
 	void GenerateNoise(int seed);
 	bool IsChunkLoaded(int worldX, int worldY);
-	Chunk* GetChunk(int worldX, int worldY);
+	WorldChunk* GetChunk(int worldX, int worldY);
 };

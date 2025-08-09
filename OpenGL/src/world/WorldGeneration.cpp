@@ -61,22 +61,23 @@ void WorldGeneration::PrepareChunksForDraw(VertexBuffer& vb, IndexBuffer& ib)
 		auto elem = std::find(
 			m_ChunksInRenderDistance.begin(), m_ChunksInRenderDistance.end(), it.coords);
 
+		auto state = it.chunk->GetState();
 		if (elem != m_ChunksInRenderDistance.end())
 		{
-			if (it.chunk->state == ChunkState::MeshGenerated)
+			if (state == ChunkState::MeshGenerated)
 			{
 				chunk->AllocateChunk(vb, ib);
 			}
-			else if (it.chunk->state == ChunkState::ChunkAllocated)
+			else if (state == ChunkState::ChunkAllocated)
 			{
 				m_ChunksToRender.push_back(chunk);
 			}
 		}
 		else
 		{
-			if (chunk->state == ChunkState::ChunkAllocated)
+			if (state == ChunkState::ChunkAllocated)
 			{
-				chunk->Deallocate(vb, ib);
+				chunk->DeallocateChunk(vb, ib);
 			}
 		}
 	}
@@ -86,9 +87,10 @@ void WorldGeneration::GenerateChunk(int worldX, int worldY)
 {
 	if (IsChunkLoaded(worldX, worldY)) return;
 
-	Chunk* chunk = new Chunk();
+	WorldChunk* chunk = new WorldChunk(m_worldNoise);
 
-	chunk->GenerateTerrain(m_worldNoise, worldX, worldY);
+	chunk->SetWorldPosition(worldX, worldY);
+	chunk->GenerateTerrain();
 	chunk->GenerateMesh();
 
 	m_LoadedChunks.push_back({ {worldX, worldY}, std::move(chunk) });
@@ -96,16 +98,16 @@ void WorldGeneration::GenerateChunk(int worldX, int worldY)
 
 void WorldGeneration::AllocateChunk(VertexBuffer& vb, IndexBuffer& ib,  int worldX, int worldY)
 {
-	Chunk* chunk = GetChunk(worldX, worldY);
+	WorldChunk* chunk = GetChunk(worldX, worldY);
 	if (chunk != nullptr)
 		chunk->AllocateChunk(vb,ib);
 }
 
 void WorldGeneration::DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int worldX, int worldY)
 {
-	Chunk* chunk = GetChunk(worldX, worldY);
+	WorldChunk* chunk = GetChunk(worldX, worldY);
 	if (chunk != nullptr)
-		chunk->Deallocate(vb, ib);
+		chunk->DeallocateChunk(vb, ib);
 }
 
 
@@ -128,7 +130,7 @@ bool WorldGeneration::IsChunkLoaded(int worldX, int worldY)
 	return it != m_LoadedChunks.end();
 }
 
-Chunk* WorldGeneration::GetChunk(int worldX, int worldY)
+WorldChunk* WorldGeneration::GetChunk(int worldX, int worldY)
 {
 	if (!IsChunkLoaded(worldX, worldY)) return nullptr;
 

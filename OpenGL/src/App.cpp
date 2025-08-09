@@ -20,7 +20,7 @@
 #include "Camera.h"
 
 #include "Block.h"
-#include "Chunk.h"
+#include "world/WorldChunk.h"
 
 #include "winApi/Memory.h"
 #include "world/WorldGeneration.h"
@@ -49,9 +49,13 @@ float height = 1280;
 float width = 720;
 
 
-void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer& vb, const IndexBuffer& ib, const Chunk* chunk)
+void DrawCall(
+	const Shader& shader, 
+	const unsigned int& vao, 
+	const VertexBuffer& vb, const IndexBuffer& ib, 
+	const WorldChunk* chunk)
 {
-	if (chunk->state != ChunkState::ChunkAllocated)
+	if (chunk->GetState() != ChunkState::ChunkAllocated)
 		return;
 	
 	shader.Bind();
@@ -59,16 +63,21 @@ void DrawCall(const Shader& shader, const unsigned int& vao, const VertexBuffer&
 	vb.Bind();
 	ib.Bind();
 
+	auto mesh = chunk->GetMesh();
+
 	glDrawElementsBaseVertex(
 		GL_TRIANGLES, 
-		chunk->m_Mesh.indices.size(),
+		mesh->indices.size(),
 		GL_UNSIGNED_INT, 
-		(void*)(chunk->m_Mesh.iboLayout.offset),
-		chunk->m_Mesh.vboLayout.offset / (6 * sizeof(float)));
+		(void*)(mesh->iboLayout.offset),
+		mesh->vboLayout.offset / (6 * sizeof(float)));
 }
 
 int main()
 {
+
+
+
 	GLFWwindow* window;
 	if (!glfwInit())
 		return -1;
@@ -125,7 +134,6 @@ int main()
 
 	int renderDistance = 2;
 	WorldGeneration world(1488);
-
 	while (!glfwWindowShouldClose(window))
 	{
 		{
