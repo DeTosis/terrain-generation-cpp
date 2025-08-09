@@ -1,4 +1,6 @@
 #pragma once
+
+#include <unordered_map>
 #include <algorithm>
 #include <future>
 #include "glm/glm.hpp"
@@ -13,17 +15,26 @@ struct ChunkWithDist
 	float dist;
 };
 
-struct ChunksMap
+//struct ChunksMap
+//{
+//	std::pair<int, int> coords;
+//	WorldChunk* chunk;
+//};
+
+struct PairHash
 {
-	std::pair<int, int> coords;
-	WorldChunk* chunk;
+	std::size_t operator()(const std::pair<int, int>& pair) const noexcept
+	{
+		return (std::hash<int>()(pair.first) << 1) ^ std::hash<int>()(pair.second);
+	}
 };
 
 class WorldGeneration
 {
 private:
 	FastNoiseLite m_worldNoise;
-	std::vector<ChunksMap> m_LoadedChunks;
+
+	std::unordered_map<std::pair<int,int>, WorldChunk*, PairHash> m_LoadedChunks;
 	std::vector<std::pair<int,int>> m_ChunksInRenderDistance;
 public:
 	std::vector<WorldChunk*> m_ChunksToRender;
@@ -42,6 +53,5 @@ public:
 private:
 	void UpdateNeighbours(WorldChunk* chunk);
 	void GenerateNoise(int seed);
-	bool IsChunkLoaded(int worldX, int worldY);
 	WorldChunk* GetChunk(int worldX, int worldY);
 };

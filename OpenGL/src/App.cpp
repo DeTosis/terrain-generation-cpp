@@ -160,7 +160,9 @@ int main()
 
 			world.UpdateChunksInRenderDistance(renderDistance, camera);
 			world.GenerateVisibleChunks();
+
 			world.UpdateChunks();
+			
 			world.PrepareChunksForDraw(vb, ib);
 
 			for (const auto& it : world.m_ChunksToRender)
@@ -176,8 +178,15 @@ int main()
 		{
 			ImGui::Text("Render Distance");
 			ImGui::SameLine();
-			ImGui::SetNextItemWidth(100);
+			ImGui::SetNextItemWidth(60);
 			ImGui::SliderInt("##.", &renderDistance, 1, 32);
+
+			ImGui::SameLine();
+			if (ImGui::Button("+"))
+				renderDistance++;
+			ImGui::SameLine();
+			if (ImGui::Button("-"))
+				renderDistance--;
 
 			ImGui::Checkbox("Wireframe", &wireframe);
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);

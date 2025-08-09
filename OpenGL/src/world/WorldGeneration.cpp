@@ -44,7 +44,7 @@ void WorldGeneration::GenerateVisibleChunks()
 	for (const auto& it : m_ChunksInRenderDistance)
 	{
 		auto& [x, y] = it;
-		if (!IsChunkLoaded(x, y))
+		if (!m_LoadedChunks.contains({x,y}))
 		{
 			PreGenerateChunk(x, y);
 		}
@@ -56,13 +56,12 @@ void WorldGeneration::PrepareChunksForDraw(VertexBuffer& vb, IndexBuffer& ib)
 	m_ChunksToRender.clear();
 	for (const auto& it : m_LoadedChunks)
 	{
-		auto& chunk = it.chunk;
+		auto& chunk = it.second;
+		auto& [x, y] = it.first;
 
-		auto state = it.chunk->GetState();
-		auto elem = std::find(
-			m_ChunksInRenderDistance.begin(), m_ChunksInRenderDistance.end(), it.coords);
+		auto state = chunk->GetState();
 
-		if (elem != m_ChunksInRenderDistance.end())
+		if (m_LoadedChunks.contains({x,y}))
 		{
 			if (state == ChunkState::MeshGenerated)
 			{
@@ -87,8 +86,10 @@ void WorldGeneration::UpdateChunks()
 {
 	for (const auto& it : m_LoadedChunks)
 	{
-		auto& chunk = it.chunk;
-		auto state = it.chunk->GetState();
+		auto& chunk = it.second;
+		auto& [x, y] = it.first;
+
+		auto state = chunk->GetState();
 
 		if (state == ChunkState::TerrainGenerated && !chunk->IsEmptyNeighbours())
 		{
@@ -108,7 +109,7 @@ void WorldGeneration::UpdateChunks()
 
 void WorldGeneration::PreGenerateChunk(int worldX, int worldY)
 {
-	if (IsChunkLoaded(worldX, worldY)) return;
+	if (m_LoadedChunks.contains({ worldX, worldY })) return;
 
 	WorldChunk* chunk = new WorldChunk(m_worldNoise);
 
@@ -119,7 +120,7 @@ void WorldGeneration::PreGenerateChunk(int worldX, int worldY)
 	chunk->GenerateTerrain();
 	chunk->GenerateMesh();
 
-	m_LoadedChunks.push_back({ {worldX, worldY}, std::move(chunk) });
+	m_LoadedChunks.insert({ {worldX, worldY}, std::move(chunk) });
 }
 
 void WorldGeneration::UpdateNeighbours(WorldChunk* chunk)
@@ -160,26 +161,9 @@ void WorldGeneration::GenerateNoise(int seed)
 	m_worldNoise.SetFrequency(0.01f);
 }
 
-bool WorldGeneration::IsChunkLoaded(int worldX, int worldY)
-{
-	std::pair<int, int> coords = { worldX, worldY };
-	auto it = std::find_if(m_LoadedChunks.begin(), m_LoadedChunks.end(), [&](const ChunksMap& chunk)
-		{
-			return chunk.coords == coords;
-		});
-
-	return it != m_LoadedChunks.end();
-}
-
 WorldChunk* WorldGeneration::GetChunk(int worldX, int worldY)
 {
-	if (!IsChunkLoaded(worldX, worldY)) return nullptr;
+	if (!m_LoadedChunks.contains({worldX, worldY})) return nullptr;
 
-	std::pair<int, int> coords = { worldX, worldY };
-	auto it = std::find_if(m_LoadedChunks.begin(), m_LoadedChunks.end(), [&](const ChunksMap& chunk)
-		{
-			return chunk.coords == coords;
-		});
-
-	return it->chunk;
+	return m_LoadedChunks.at({worldX, worldY});
 }
