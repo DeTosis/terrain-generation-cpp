@@ -1,26 +1,18 @@
 #include "WorldGeneration.h"
 
 std::mutex mtx;
-WorldGeneration::WorldGeneration(int seed, int maxThreads) : m_StopWorkers(false)
+static void ManageGenaration(std::vector<WorldChunk*>& generationQueue);
+
+WorldGeneration::WorldGeneration(int seed)
 {
 	GenerateNoise(seed);
-	for (int i = 0; i < maxThreads; i++)
-	{
-		workingThreads.emplace_back([this]() { this->GenerationWorkerLoop(); });
-	}
+	std::thread generator(ManageGenaration, std::ref(m_GenerationQueue));
+	m_GenerationThread = std::move(generator);
 }
 
 WorldGeneration::~WorldGeneration()
 {
-	m_StopWorkers = true;
-	for (auto& it : workingThreads)
-	{
-		if (it.joinable())
-		{
-			it.join();
-		}
-	}
-	workingThreads.clear();
+	m_GenerationThread.join();
 }
 
 void WorldGeneration::UpdateChunksInRenderDistance(int chunkRenderDistance, Camera& camera)
@@ -107,9 +99,7 @@ void WorldGeneration::PostGenerateChunks()
 		if (state == ChunkState::TerrainGenerated && !chunk->IsEmptyNeighbours())
 		{
 			chunk->SetState(ChunkState::Queued);
-			
-			this->Enque(chunk);
-			//m_GenerationQueue.push(chunk);
+			m_GenerationQueue.push_back(chunk);
 		}
 		else if (chunk->IsEmptyNeighbours())
 		{
@@ -167,6 +157,7 @@ void WorldGeneration::DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int wor
 		chunk->DeallocateChunk(vb, ib);
 }
 
+
 void WorldGeneration::GenerateNoise(int seed)
 {
 	m_worldNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
@@ -182,29 +173,59 @@ WorldChunk* WorldGeneration::GetChunk(int worldX, int worldY)
 	return m_LoadedChunks.at({worldX, worldY});
 }
 
-void WorldGeneration::GenerationWorkerLoop()
+static void ThreadGenerateChunk(std::promise<void> p, WorldChunk* chunk)
 {
-	while (true)
-	{
-		WorldChunk* chunk = nullptr;
-		{
-			std::unique_lock lock(mtx);
-			m_GenCVar.wait(lock, [&]() { return m_StopWorkers || !m_GenerationQueue.empty(); });
-			if (m_StopWorkers && m_GenerationQueue.empty()) return;
-			
-			chunk = m_GenerationQueue.front();
-			m_GenerationQueue.pop();
-		}
-		chunk->SetState(ChunkState::NeighboursGenerated);
-		chunk->GenerateMesh();
-	}
+	chunk->SetState(ChunkState::NeighboursGenerated);
+	chunk->GenerateMesh();
+
+	p.set_value();
 }
 
-void WorldGeneration::Enque(WorldChunk* chunk)
+
+static void ManageGenaration(std::vector<WorldChunk*>& generationQueue)
 {
+	int threadLimit = 4;
+	std::vector<std::pair<std::future<void>, std::thread>> workingThreads;
+	while (true)
 	{
-		std::lock_guard genLock(mtx);
-		m_GenerationQueue.push(chunk);
+		std::lock_guard lock(mtx);
+		{
+			if (generationQueue.empty())
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				continue;
+			}
+
+			while (workingThreads.size() < threadLimit)
+			{
+				if(generationQueue.empty())
+					break;
+
+				std::promise<void> p;
+				std::future<void> f = p.get_future();
+
+				WorldChunk* chunk = nullptr;
+				chunk = generationQueue.front();
+
+				std::thread t(ThreadGenerateChunk, std::move(p), std::move(chunk));
+				workingThreads.push_back({ std::move(f), std::move(t) });
+
+				generationQueue.erase(generationQueue.begin());
+			}
+			
+			for (auto it = workingThreads.begin(); it != workingThreads.end();)
+			{
+				auto& [f, t] = *it;
+
+				if (f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+				{
+					if (t.joinable())
+					{
+						t.join();
+						it = workingThreads.erase(it);
+					}
+				}
+			}
+		}
 	}
-	m_GenCVar.notify_one();
 }

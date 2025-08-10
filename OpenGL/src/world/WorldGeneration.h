@@ -3,7 +3,6 @@
 #include <thread>
 #include <future>
 #include <unordered_map>
-#include <queue>
 #include <unordered_set>
 #include <algorithm>
 #include "glm/glm.hpp"
@@ -32,25 +31,23 @@ private:
 	FastNoiseLite m_worldNoise;
 	std::unordered_map<std::pair<int,int>, WorldChunk*, PairHash> m_LoadedChunks;
 	std::unordered_set<std::pair<int,int>, PairHash> m_ChunksInRenderDistance;
-	std::vector<std::thread> workingThreads;
-	bool m_StopWorkers;
-	std::condition_variable m_GenCVar;
+	std::thread m_GenerationThread;
+	std::vector<WorldChunk*> m_GenerationQueue;
 public:
-	std::queue<WorldChunk*> m_GenerationQueue;
 	std::vector<WorldChunk*> m_ChunksToRender;
 public:
-	WorldGeneration(int seed, int maxThreads);
+	WorldGeneration(int seed);
 	~WorldGeneration();
 	void UpdateChunksInRenderDistance(int chunkRenderDistance, Camera& camera);
 	void PrepareChunksForDraw(VertexBuffer& vb, IndexBuffer& ib);
+
 public:
 	void PreGenerateChunk(int worldX, int worldY);
 	void PostGenerateChunks();
+
 	void AllocateChunk(VertexBuffer& vb, IndexBuffer& ib,int worldX, int worldY);
 	void DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int worldX, int worldY);
 private:
-	void Enque(WorldChunk* chunk);
-	void GenerationWorkerLoop();
 	void UpdateNeighbours(WorldChunk* chunk);
 	void GenerateNoise(int seed);
 	WorldChunk* GetChunk(int worldX, int worldY);
