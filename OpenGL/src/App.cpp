@@ -24,18 +24,13 @@
 
 #include "winApi/Memory.h"
 #include "world/WorldGeneration.h"
+#include "engine/DeltaTime.h"
+#include "engine/Windowing.h"
 
-float deltaTime;
-float lastFrame = 0.0f;
+static float height = 1280;
+static float width = 720;
+static float fov = 80.0f;
 
-void UpdateDeltaTime()
-{
-	float current = (float)glfwGetTime();
-	deltaTime = current - lastFrame;
-	lastFrame = current;
-}
-
-void SetWireframeMode(unsigned int mode) { glPolygonMode(GL_FRONT_AND_BACK, mode); }
 glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkSize)
 {
 	return glm::vec3({
@@ -44,10 +39,6 @@ glm::vec3 WorldToChunkPos(const glm::vec3& cameraPos, const unsigned int& chunkS
 		floor(cameraPos.z / chunkSize)
 		});
 }
-
-float height = 1280;
-float width = 720;
-
 
 void DrawCall(
 	const Shader& shader, 
@@ -73,64 +64,55 @@ void DrawCall(
 		mesh->vboLayout.offset / (6 * sizeof(float)));
 }
 
+void WindowResizeCallback(GLFWwindow* wnd, int Awidth, int Aheight)
+{
+	width = Awidth;
+	height =  Aheight;
+	glViewport(0, 0, width, height);
+}
+
 int main()
 {
-	GLFWwindow* window;
-	if (!glfwInit())
-		return -1;
+	Window wnd("?");
+	wnd.GlewInit();
+	wnd.SetSwapInterval(1);
 
-	window = glfwCreateWindow(height, width, "?", nullptr, nullptr);
-	if (!window)
-	{
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
-	glfwSwapInterval(1);
+	auto window = wnd.GetWindow();
+	if (window == nullptr)
+		exit(-1);
 
-	if (glewInit() != GLEW_OK)
-	{
-		glfwTerminate();
-		return -1;
-	}
+	wnd.FrameBufferSizeCallback(WindowResizeCallback);
 
+	VertexBuffer vb;
+	IndexBuffer ib;
+	Shader shader("res/shaders/basic.shader");
+
+	// *** MESS ***
 	unsigned int vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
-
-	VertexBuffer vb;
 	vb.Bind();
-
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
-	
-	IndexBuffer ib;
-	ib.Bind();
-
-	Shader shader("res/shaders/basic.shader");
-
-	float fov = 80.0f;
-	glm::mat4 proj = glm::perspective(glm::radians(fov), height / width, 0.1f, 1000.0f);
-	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -3));
+	// *** MESS ***
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	
-	bool wireframe = false;
+	Camera camera(0.1f, 10.0f);
+	glm::mat4 proj = glm::perspective(glm::radians(fov), height / width, 0.1f, 1000.0f);
+	glm::mat4 view = camera.CameraLookMatrix(window);
 
 	ImGuiSup gui(window);
+	WorldGeneration world(1488);
+	DeltaTime time;
 	
-	Camera camera(0.1f, 10.0f);
-	view = camera.CameraLookMatrix(window);
-
+	int renderDistance = 4;
 	unsigned int query;
 	glGenQueries(1, &query);
-
-	int renderDistance = 4;
-	WorldGeneration world(1488);
 	while (!glfwWindowShouldClose(window))
 	{
 		{
@@ -140,11 +122,10 @@ int main()
 			gui.NewFrame();
 			// *** FRAME BOOTSTRAP ***
 
-			UpdateDeltaTime();
-			SetWireframeMode(wireframe ? GL_LINE : GL_FILL);
+			time.UpdateDeltaTime();
 
 			// *** CAMERA ***
-			camera.Move(window, deltaTime);
+			camera.Move(window, time.deltaTime);
 			camera.UpdateCursorLockState(window);
 			if (camera.GetMouseState())
 				view = camera.CameraLookMatrix(window);
@@ -159,10 +140,7 @@ int main()
  			shader.SetUniformMatrix4fv("u_MVP", mvp);
 
 			world.UpdateChunksInRenderDistance(renderDistance, camera);
-			world.GenerateVisibleChunks();
-
-			world.UpdateChunks();
-			
+			world.PostGenerateChunks();
 			world.PrepareChunksForDraw(vb, ib);
 
 			for (const auto& it : world.m_ChunksToRender)
@@ -188,9 +166,12 @@ int main()
 			if (ImGui::Button("-"))
 				renderDistance--;
 
+			bool wireframe;
 			ImGui::Checkbox("Wireframe", &wireframe);
+			glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-			ImGui::Text("Delta Time %.f ms", deltaTime * 1000.0f);
+			ImGui::Text("Delta Time %.f ms", time.deltaTime * 1000.0f);
 
 			ImGui::Text("Faces     : %.i", primitives / 2);
 			ImGui::Text("Triangles : %.i", primitives);
@@ -236,7 +217,6 @@ int main()
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
-
 	glfwTerminate();
 	
 	return 0;

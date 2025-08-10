@@ -9,6 +9,7 @@ enum class ChunkState
 	Undefined,
 	TerrainGenerated,
 	NeighboursGenerated,
+	Queued,
 	MeshGenerated,
 	ChunkAllocated,
 };

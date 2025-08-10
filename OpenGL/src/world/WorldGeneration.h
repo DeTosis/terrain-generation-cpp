@@ -1,8 +1,10 @@
 #pragma once
 
-#include <unordered_map>
-#include <algorithm>
+#include <thread>
 #include <future>
+#include <unordered_map>
+#include <unordered_set>
+#include <algorithm>
 #include "glm/glm.hpp"
 
 #include "UniChunkData.h"
@@ -14,12 +16,6 @@ struct ChunkWithDist
 	std::pair<int, int> coord;
 	float dist;
 };
-
-//struct ChunksMap
-//{
-//	std::pair<int, int> coords;
-//	WorldChunk* chunk;
-//};
 
 struct PairHash
 {
@@ -33,20 +29,21 @@ class WorldGeneration
 {
 private:
 	FastNoiseLite m_worldNoise;
-
 	std::unordered_map<std::pair<int,int>, WorldChunk*, PairHash> m_LoadedChunks;
-	std::vector<std::pair<int,int>> m_ChunksInRenderDistance;
+	std::unordered_set<std::pair<int,int>, PairHash> m_ChunksInRenderDistance;
+	std::thread m_GenerationThread;
+	std::vector<WorldChunk*> m_GenerationQueue;
 public:
 	std::vector<WorldChunk*> m_ChunksToRender;
 public:
 	WorldGeneration(int seed);
+	~WorldGeneration();
 	void UpdateChunksInRenderDistance(int chunkRenderDistance, Camera& camera);
-	void GenerateVisibleChunks();
 	void PrepareChunksForDraw(VertexBuffer& vb, IndexBuffer& ib);
 
 public:
 	void PreGenerateChunk(int worldX, int worldY);
-	void UpdateChunks();
+	void PostGenerateChunks();
 
 	void AllocateChunk(VertexBuffer& vb, IndexBuffer& ib,int worldX, int worldY);
 	void DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int worldX, int worldY);
