@@ -13,12 +13,19 @@ WorldGeneration::WorldGeneration(int seed, int maxThreads) : m_StopWorkers(false
 WorldGeneration::~WorldGeneration()
 {
 	m_StopWorkers = true;
+
+	while (!m_GenerationQueue.empty())
+	{
+		std::lock_guard lock(mtx);
+		m_GenerationQueue.pop();
+	}
+
+	m_GenCVar.notify_all();
+
 	for (auto& it : workingThreads)
 	{
 		if (it.joinable())
-		{
 			it.join();
-		}
 	}
 	workingThreads.clear();
 }
