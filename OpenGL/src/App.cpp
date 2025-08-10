@@ -107,14 +107,16 @@ int main()
 	glm::mat4 view = camera.CameraLookMatrix(window);
 
 	ImGuiSup gui(window);
-	WorldGeneration world(1488);
+	WorldGeneration world(1488, 6);
 	DeltaTime time;
 	
 	int renderDistance = 4;
 	unsigned int query;
 	glGenQueries(1, &query);
+
 	while (!glfwWindowShouldClose(window))
 	{
+
 		{
 			// *** FRAME BOOTSTRAP ***
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -205,6 +207,7 @@ int main()
 				camera.m_Yaw = -90.0f;
 				view = camera.CameraLookMatrix(window);
 			}
+			ImGui::Text("Generation queue %d", world.m_GenerationQueue.size());
 		}
 		// *** IMGUI ***
 
