@@ -6,8 +6,10 @@ WorldGeneration::WorldGeneration(int seed, int maxThreads) : m_StopWorkers(false
 	GenerateNoise(seed);
 	for (int i = 0; i < maxThreads; i++)
 	{
-		workingThreads.emplace_back([this]() { this->GenerationWorkerLoop(); });
+		m_WorkingThreads.emplace_back([this]() { this->GenerationWorkerLoop(); });
 	}
+
+	
 }
 
 WorldGeneration::~WorldGeneration()
@@ -22,12 +24,12 @@ WorldGeneration::~WorldGeneration()
 
 	m_GenCVar.notify_all();
 
-	for (auto& it : workingThreads)
+	for (auto& it : m_WorkingThreads)
 	{
 		if (it.joinable())
 			it.join();
 	}
-	workingThreads.clear();
+	m_WorkingThreads.clear();
 }
 
 void WorldGeneration::UpdateChunksInRenderDistance(int chunkRenderDistance, Camera& camera)
@@ -133,7 +135,7 @@ void WorldGeneration::PreGenerateChunk(int worldX, int worldY)
 {
 	if (m_LoadedChunks.contains({ worldX, worldY })) return;
 
-	WorldChunk* chunk = new WorldChunk(m_worldNoise);
+	WorldChunk* chunk = new WorldChunk(m_WorldNoise);
 
 	chunk->SetWorldPosition(worldX, worldY);
 
@@ -176,10 +178,10 @@ void WorldGeneration::DeallocateChunk(VertexBuffer& vb, IndexBuffer& ib, int wor
 
 void WorldGeneration::GenerateNoise(int seed)
 {
-	m_worldNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+	m_WorldNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
 
-	m_worldNoise.SetSeed(seed);
-	m_worldNoise.SetFrequency(0.01f);
+	m_WorldNoise.SetSeed(seed);
+	m_WorldNoise.SetFrequency(0.01f);
 }
 
 WorldChunk* WorldGeneration::GetChunk(int worldX, int worldY)

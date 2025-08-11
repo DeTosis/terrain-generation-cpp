@@ -29,10 +29,10 @@ struct PairHash
 class WorldGeneration
 {
 private:
-	FastNoiseLite m_worldNoise;
+	FastNoiseLite m_WorldNoise;
 	std::unordered_map<std::pair<int,int>, WorldChunk*, PairHash> m_LoadedChunks;
 	std::unordered_set<std::pair<int,int>, PairHash> m_ChunksInRenderDistance;
-	std::vector<std::thread> workingThreads;
+	std::vector<std::thread> m_WorkingThreads;
 	bool m_StopWorkers;
 	std::condition_variable m_GenCVar;
 public:

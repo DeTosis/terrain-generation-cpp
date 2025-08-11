@@ -1,5 +1,5 @@
 #pragma once
-#include <fastNoise/FastNoiseLite.h>
+#include "NoiseGen.h"
 
 #include "UniChunkData.h"
 #include "../Block.h"
@@ -19,12 +19,14 @@ struct NeighbourChunks
 class WorldChunk
 {
 private:
+	FastNoiseLite* m_Noise = nullptr;
+	NoiseGenerator m_NoiseGen;
+	
 	unsigned int m_VertexSize = 6;
 	std::vector<BlockType> m_Terrain;
 	NeighbourChunks m_Neighbours;
 	ChunkMesh* m_Mesh = new ChunkMesh();
 	ChunkState m_ChunkState = ChunkState::Undefined;
-	FastNoiseLite* m_Noise = nullptr;
 public:
 	int m_WorldX = 0;
 	int m_WorldY = 0;

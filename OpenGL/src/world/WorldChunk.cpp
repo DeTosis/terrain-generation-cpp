@@ -1,4 +1,5 @@
 #include "WorldChunk.h"
+#include <iostream>
 
 WorldChunk::WorldChunk(FastNoiseLite& noise)
 	: m_Noise(&noise)
@@ -34,6 +35,8 @@ void WorldChunk::GenerateTerrain()
 
 	float heightMap[ChunkSizeXY][ChunkSizeXY];
 
+	NosieSettings MountainNoise	{ 2.0f, 0.45f, 5.4f, 0.012f, 16, ChunkHeight, true, 8 };
+
 	for (int x = 0; x < ChunkSizeXY; x++)
 	{
 		for (int y = 0; y < ChunkSizeXY; y++)
@@ -41,10 +44,8 @@ void WorldChunk::GenerateTerrain()
 			float worldX = m_WorldX * static_cast<float>(ChunkSizeXY) + x;
 			float worldY = m_WorldY * static_cast<float>(ChunkSizeXY) + y;
 
-			float noiseValue = m_Noise->GetNoise(worldX, worldY);
-			float normalized = (noiseValue + 1.0f) / 2.0f;
-
-			heightMap[x][y] = normalized * ChunkHeight / 2;
+			float height = m_NoiseGen.GetHeight(*m_Noise, worldX, worldY, MountainNoise);
+			heightMap[x][y] = height;
 		}
 	}
 
@@ -57,8 +58,7 @@ void WorldChunk::GenerateTerrain()
 			{
 				if (z < height)
 					m_Terrain.at(x + y * ChunkSizeXY + z * ChunkSizeXY * ChunkSizeXY) = BlockType::Undefined;
-
-				if (z > ChunkHeight / 2)
+				else
 					m_Terrain.at(x + y * ChunkSizeXY + z * ChunkSizeXY * ChunkSizeXY) = BlockType::Air;
 			}
 		}

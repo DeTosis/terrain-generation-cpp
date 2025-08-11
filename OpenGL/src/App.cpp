@@ -107,7 +107,7 @@ int main()
 	glm::mat4 view = camera.CameraLookMatrix(window);
 
 	ImGuiSup gui(window);
-	WorldGeneration world(1488, 6);
+	WorldGeneration world(1488, 3);
 	DeltaTime time;
 	
 	int renderDistance = 4;

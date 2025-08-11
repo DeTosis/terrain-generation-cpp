@@ -2,7 +2,7 @@
 #include <vector>
 
 inline constexpr unsigned int ChunkSizeXY = 16;
-inline constexpr unsigned int ChunkHeight = ChunkSizeXY * 4;
+inline constexpr unsigned int ChunkHeight = ChunkSizeXY * 8;
 
 enum class ChunkState
 {
