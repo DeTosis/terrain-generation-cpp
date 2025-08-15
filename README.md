@@ -9,7 +9,9 @@ _This project only targets Windows_
 _Currently, the project can only be built using the provided .sln file located in the project root directory_
 
 * Clone repository:
-    * `git clone https://github.com/DeTosis/terrain-generation-cpp`
+    * ~~~
+      git clone https://github.com/DeTosis/terrain-generation-cpp
+      ~~~
 
 * Using Visual Studio open `.sln` file in project root folder
     * Build application
